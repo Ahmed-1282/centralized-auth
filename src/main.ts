@@ -24,6 +24,9 @@ function getLocalIPAddress(): string {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Enable CORS for cross-dashboard SSO
+  app.enableCors();
+
   // Global prefix for all routes
   app.setGlobalPrefix('api');
 
@@ -40,8 +43,12 @@ async function bootstrap() {
   // Swagger Configuration
   const config = new DocumentBuilder()
     .setTitle('GIS Auth API')
-    .setDescription('API documentation for GIS Authentication System')
+    .setDescription(
+      'Centralized Authentication & Authorization API for the Agriculture Monitoring Platform. ' +
+        'Manages users, partners, roles, permissions, and API keys across 6 interconnected dashboards.',
+    )
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
