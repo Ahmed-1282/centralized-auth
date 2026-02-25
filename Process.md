@@ -118,104 +118,136 @@ src/
 ### 14 Tables Overview
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│   partners   │     │    dashboards     │     │   audit_logs     │
-│─────────────────│     │──────────────────│     │──────────────────│
-│ partner_id (PK) │     │ dashboard_id (PK)│     │ log_id (PK)      │
-│ name            │     │ code (UNIQUE)    │     │ user_id (FK)     │
-│ slug            │     │ name             │     │ action           │
-│ address         │     │ description      │     │ resource_type    │
-│ contact_no      │     │ is_active        │     │ resource_id      │
-│ email           │     └──────────────────┘     │ details (JSONB)  │
-│ logo_url        │                               │ ip_address       │
-│ credits         │                               │ user_agent       │
-│ message_credits │                               │ created_at       │
-│ settings (JSONB)│                               └──────────────────┘
-│ is_active       │
-│ soft delete     │
-└─────────────────┘
+┌──────────────────────┐     ┌──────────────────┐     ┌──────────────────────┐
+│      partners        │     │    dashboards     │     │     audit_logs       │
+│──────────────────────│     │──────────────────│     │──────────────────────│
+│ partner_id (PK)      │     │ dashboard_id (PK)│     │ log_id (PK)          │
+│ name                 │     │ code (UNIQUE)    │     │ user_id (FK)         │
+│ slug (UNIQUE)        │     │ name             │     │ action               │
+│ address              │     │ description      │     │ resource_type        │
+│ contact_no           │     │ is_active        │     │ resource_id          │
+│ email                │     └──────────────────┘     │ details (JSONB)      │
+│ logo_url             │                               │ ip_address           │
+│ credits              │                               │ user_agent           │
+│ message_credits      │                               │ created_at           │
+│ settings (JSONB)     │                               └──────────────────────┘
+│ is_active            │
+│ created_at           │
+│ updated_at           │
+│ deleted_at           │
+└──────────────────────┘
 
-┌──────────────────┐     ┌───────────────────────┐
-│      roles       │     │     permissions        │
-│──────────────────│     │───────────────────────│
-│ role_id (PK)     │     │ permission_id (PK)     │
-│ dashboard_id(FK) │     │ dashboard_id (FK)      │
-│ code             │     │ code                   │
-│ name             │     │ name                   │
-│ description      │     │ description            │
-│ is_system_role   │     │ module                 │
-└──────────────────┘     └───────────────────────┘
-         │                          │
-         └────── role_permissions ──┘   (M:N join table)
+┌──────────────────────┐     ┌──────────────────────┐
+│       roles          │     │     permissions      │
+│──────────────────────│     │──────────────────────│
+│ role_id (PK)         │     │ permission_id (PK)   │
+│ dashboard_id (FK)    │     │ dashboard_id (FK)    │
+│ code                 │     │ code                 │
+│ name                 │     │ name                 │
+│ description          │     │ description          │
+│ is_system_role       │     │ module               │
+└──────────────────────┘     └──────────────────────┘
+         │                              │
+         │    ┌──────────────────────┐  │
+         └───>│  role_permissions    │<─┘
+              │──────────────────────│
+              │ role_id (PK, FK)     │
+              │ permission_id (PK,FK)│
+              └──────────────────────┘
 
-┌──────────────────┐
-│      users       │
-│──────────────────│
-│ user_id (PK)     │
-│ username (UNIQUE)│
-│ email (UNIQUE)   │
-│ password_hash    │
-│ full_name        │
-│ phone            │
-│ avatar_url       │
-│ is_active        │
-│ is_system_user   │
-│ partner_id (FK)  │  → NULL for system users
-│ last_login_at    │
-│ soft delete      │
-└──────────────────┘
-     │         │
-     │         ├── user_roles          (user → role assignment, with granted_by, revoked_at)
-     │         ├── user_permissions    (direct grant/deny overrides)
-     │         └── refresh_tokens      (hashed, rotatable, per-device)
-     │
-     └── agents (1:1 optional link)
+┌──────────────────────┐
+│       users          │
+│──────────────────────│
+│ user_id (PK)         │
+│ username (UNIQUE)    │
+│ email (UNIQUE)       │
+│ password_hash        │
+│ full_name            │
+│ phone                │
+│ avatar_url           │
+│ is_active            │
+│ is_system_user       │
+│ partner_id (FK)      │  → NULL for system users
+│ last_login_at        │
+│ created_at           │
+│ updated_at           │
+│ deleted_at           │
+└──────────────────────┘
 
-┌─────────────────────────┐     ┌──────────────────────────────┐
-│   partner_dashboards    │     │   partner_feature_toggles    │
-│─────────────────────────│     │──────────────────────────────│
-│ partner_id (PK, FK)     │     │ partner_id (PK, FK)          │
-│ dashboard_id (PK, FK)   │     │ permission_id (PK, FK)       │
-│ is_enabled              │     │ is_enabled                   │
-│ enabled_at              │     └──────────────────────────────┘
-│ enabled_by (FK)         │
-│ config (JSONB)          │
-└─────────────────────────┘
+┌──────────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
+│     user_roles       │     │   user_permissions   │     │   refresh_tokens     │
+│──────────────────────│     │──────────────────────│     │──────────────────────│
+│ user_role_id (PK)    │     │ user_permission_id   │     │ token_id (PK)        │
+│ user_id (FK)         │     │   (PK)               │     │ user_id (FK)         │
+│ role_id (FK)         │     │ user_id (FK)         │     │ token_hash           │
+│ granted_by (FK)      │     │ permission_id (FK)   │     │ device_info (JSONB)  │
+│ granted_at           │     │ is_granted           │     │ ip_address           │
+│ revoked_at           │     │ granted_by (FK)      │     │ expires_at           │
+└──────────────────────┘     │ granted_at           │     │ revoked_at           │
+                              └──────────────────────┘     │ created_at           │
+                                                           └──────────────────────┘
 
-┌──────────────────┐
-│    api_keys      │
-│──────────────────│
-│ api_key_id (PK)  │
-│ partner_id (FK)  │
-│ key_hash         │
-│ key_prefix       │
-│ name             │
-│ scopes (TEXT[])  │
-│ rate_limit       │
-│ is_active        │
-│ expires_at       │
-│ created_by (FK)  │
-└──────────────────┘
+┌──────────────────────┐
+│       agents         │
+│──────────────────────│
+│ agent_id (PK)        │
+│ user_id (FK, UNIQUE) │  → optional 1:1 link to users
+│ partner_id (FK)      │
+│ msisdn               │
+│ subscriber_name      │
+│ home_location (JSONB)│
+│ status               │
+│ created_at           │
+│ updated_at           │
+└──────────────────────┘
+
+┌──────────────────────────┐     ┌──────────────────────────────┐
+│    partner_dashboards    │     │   partner_feature_toggles    │
+│──────────────────────────│     │──────────────────────────────│
+│ partner_id (PK, FK)      │     │ partner_id (PK, FK)          │
+│ dashboard_id (PK, FK)    │     │ permission_id (PK, FK)       │
+│ is_enabled               │     │ is_enabled                   │
+│ enabled_at               │     └──────────────────────────────┘
+│ enabled_by (FK)          │
+│ config (JSONB)           │
+└──────────────────────────┘
+
+┌──────────────────────┐
+│      api_keys        │
+│──────────────────────│
+│ api_key_id (PK)      │
+│ partner_id (FK)      │
+│ key_hash             │
+│ key_prefix           │
+│ name                 │
+│ scopes (TEXT[])      │
+│ rate_limit           │
+│ is_active            │
+│ expires_at           │
+│ last_used_at         │
+│ created_by (FK)      │
+│ created_at           │
+└──────────────────────┘
 ```
 
 ### Table Purposes
 
-| Table | Purpose |
-|-------|---------|
-| `partners` | Partner organizations with settings, credits, soft delete |
-| `dashboards` | Registry of the 6 dashboards |
-| `roles` | Named roles scoped to a dashboard |
-| `permissions` | Granular feature permissions scoped to a dashboard |
-| `role_permissions` | M:N mapping of which permissions a role grants |
-| `users` | Central user accounts with bcrypt passwords |
-| `user_roles` | Which roles a user has (with soft revoke) |
-| `user_permissions` | Direct permission overrides (grant or deny) |
-| `partner_dashboards` | Which dashboards a partner can access |
-| `partner_feature_toggles` | Feature-level on/off per partner |
-| `agents` | Field agents with optional user account link |
-| `refresh_tokens` | Hashed refresh tokens for token rotation |
-| `api_keys` | Third-party API access with scopes + rate limits |
-| `audit_logs` | Append-only action trail for all admin operations |
+| Table | Columns | Purpose |
+|-------|---------|---------|
+| `partners` | 12 cols + timestamps + soft delete | Partner organizations with settings, credits, branding |
+| `dashboards` | 4 cols | Registry of the 6 dashboards |
+| `roles` | 6 cols | Named roles scoped to a dashboard (e.g., `partner_admin` on `crop_monitoring`) |
+| `permissions` | 6 cols | Granular feature permissions scoped to a dashboard (e.g., `farms.view`) |
+| `role_permissions` | 2 cols (composite PK) | M:N mapping of which permissions a role grants |
+| `users` | 11 cols + timestamps + soft delete | Central user accounts with bcrypt passwords, partner link |
+| `user_roles` | 6 cols | User-to-role assignment with `granted_by`, `granted_at`, `revoked_at` audit trail |
+| `user_permissions` | 6 cols | Direct permission overrides — grant or deny beyond the role |
+| `refresh_tokens` | 7 cols + created_at | Bcrypt-hashed refresh tokens with device info, IP, expiration, revocation |
+| `agents` | 7 cols + timestamps | Field agents with optional 1:1 user account link, JSONB home location |
+| `partner_dashboards` | 5 cols + composite PK | Which dashboards a partner can access, with config and audit |
+| `partner_feature_toggles` | 3 cols (composite PK) | Feature-level on/off per partner per permission |
+| `api_keys` | 11 cols + created_at | Third-party API access with hashed keys, scopes, rate limits |
+| `audit_logs` | 8 cols + created_at | Append-only action trail — user, action, resource, details, IP |
 
 ---
 
