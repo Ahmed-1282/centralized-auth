@@ -763,6 +763,7 @@ Full permissions: `surveys.submit`, `boundaries.mark`, `photos.upload`, `tasks.v
 | Fresh `partners` table | Clean design | No auth fields mixed in, proper UUID PKs, JSONB settings |
 | Audit logs | Append-only | Every admin action (create, update, delete, assign, revoke) is tracked |
 | API keys hashed | Only prefix stored | Like GitHub tokens - the raw key is shown once at creation, never again |
+| Explicit `type` on nullable `@Column` | Always specify `type` when `nullable: true` | TypeScript's `emitDecoratorMetadata` emits `Object` for union types (`string \| null`), which PostgreSQL doesn't support. Always use e.g. `@Column({ type: 'uuid', nullable: true })` or `@Column({ type: 'varchar', length: 255, nullable: true })` |
 
 ---
 

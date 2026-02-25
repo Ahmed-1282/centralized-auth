@@ -19,14 +19,14 @@ export class UserRole {
   @Column({ name: 'role_id' })
   roleId: string;
 
-  @Column({ name: 'granted_by', nullable: true })
-  grantedBy: string;
+  @Column({ name: 'granted_by', type: 'uuid', nullable: true })
+  grantedBy: string | null;
 
   @Column({ name: 'granted_at', type: 'timestamptz', default: () => 'NOW()' })
   grantedAt: Date;
 
   @Column({ name: 'revoked_at', type: 'timestamptz', nullable: true })
-  revokedAt: Date;
+  revokedAt: Date | null;
 
   @ManyToOne(() => User, (user) => user.userRoles)
   @JoinColumn({ name: 'user_id' })

@@ -22,7 +22,7 @@ export class UserPermission {
   @Column({ name: 'is_granted', default: true })
   isGranted: boolean;
 
-  @Column({ name: 'granted_by', nullable: true })
+  @Column({ name: 'granted_by', type: 'uuid', nullable: true })
   grantedBy: string | null;
 
   @Column({ name: 'granted_at', type: 'timestamptz', default: () => 'NOW()' })
