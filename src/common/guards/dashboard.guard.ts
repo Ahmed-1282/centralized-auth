@@ -31,8 +31,10 @@ export class DashboardGuard implements CanActivate {
     );
     if (!dashboardCode) return true; // No dashboard restriction
 
-    const request = context.switchToHttp().getRequest();
-    const user = request.user as AuthenticatedUser;
+    const request = context
+      .switchToHttp()
+      .getRequest<{ user: AuthenticatedUser }>();
+    const user = request.user;
     if (!user) return false;
 
     // System users can access all dashboards

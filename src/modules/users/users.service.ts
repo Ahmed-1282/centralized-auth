@@ -24,7 +24,10 @@ export class UsersService {
   async create(dto: CreateUserDto, createdBy?: string): Promise<User> {
     // Check uniqueness
     const existing = await this.userRepo.findOne({
-      where: [{ username: dto.username }, ...(dto.email ? [{ email: dto.email }] : [])],
+      where: [
+        { username: dto.username },
+        ...(dto.email ? [{ email: dto.email }] : []),
+      ],
     });
     if (existing) {
       throw new ConflictException('Username or email already exists');
@@ -93,7 +96,12 @@ export class UsersService {
   async findOne(userId: string): Promise<User> {
     const user = await this.userRepo.findOne({
       where: { userId, deletedAt: IsNull() },
-      relations: ['partner', 'userRoles', 'userRoles.role', 'userRoles.role.dashboard'],
+      relations: [
+        'partner',
+        'userRoles',
+        'userRoles.role',
+        'userRoles.role.dashboard',
+      ],
     });
     if (!user) throw new NotFoundException('User not found');
     return user;

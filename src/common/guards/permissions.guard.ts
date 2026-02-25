@@ -1,7 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { DASHBOARD_KEY } from '../decorators/dashboard.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
@@ -46,8 +46,10 @@ export class PermissionsGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    const request = context.switchToHttp().getRequest();
-    const user = request.user as AuthenticatedUser;
+    const request = context
+      .switchToHttp()
+      .getRequest<{ user: AuthenticatedUser }>();
+    const user = request.user;
     if (!user) return false;
 
     // System users bypass permission checks
@@ -65,7 +67,8 @@ export class PermissionsGuard implements CanActivate {
       if (dashboardCode && ur.role.dashboardId) {
         // Load dashboard code for the role
         const matchingRoleInJwt = user.roles.find(
-          (r) => r.roleCode === ur.role.code && r.dashboardCode === dashboardCode,
+          (r) =>
+            r.roleCode === ur.role.code && r.dashboardCode === dashboardCode,
         );
         if (!matchingRoleInJwt) continue;
       }

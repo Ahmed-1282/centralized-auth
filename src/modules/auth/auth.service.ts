@@ -71,7 +71,7 @@ export class AuthService {
     }));
 
     // Generate tokens
-    const tokens = await this.generateTokens(user, roles);
+    const tokens = this.generateTokens(user, roles);
 
     // Store refresh token
     const refreshTokenHash = await bcrypt.hash(tokens.refreshToken, 10);
@@ -172,7 +172,7 @@ export class AuthService {
     }));
 
     // Generate new token pair
-    const tokens = await this.generateTokens(user, roles);
+    const tokens = this.generateTokens(user, roles);
 
     // Store new refresh token
     const refreshTokenHash = await bcrypt.hash(tokens.refreshToken, 10);
@@ -261,10 +261,10 @@ export class AuthService {
     };
   }
 
-  private async generateTokens(
+  private generateTokens(
     user: User,
     roles: { dashboardCode: string; roleCode: string }[],
-  ): Promise<AuthTokensDto> {
+  ): AuthTokensDto {
     const payload: JwtPayload = {
       sub: user.userId,
       username: user.username,

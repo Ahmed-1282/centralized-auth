@@ -26,7 +26,7 @@ export class ApiKey {
   @Column({ length: 255 })
   name: string;
 
-  @Column({ type: 'text', array: true, default: () => "ARRAY[]::text[]" })
+  @Column({ type: 'text', array: true, default: () => 'ARRAY[]::text[]' })
   scopes: string[];
 
   @Column({ name: 'rate_limit', default: 60 })

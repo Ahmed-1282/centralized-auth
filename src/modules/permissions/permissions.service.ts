@@ -52,7 +52,10 @@ export class PermissionsService {
     return saved;
   }
 
-  async findAll(dashboardCode?: string, module?: string): Promise<Permission[]> {
+  async findAll(
+    dashboardCode?: string,
+    module?: string,
+  ): Promise<Permission[]> {
     const qb = this.permissionRepo
       .createQueryBuilder('perm')
       .leftJoinAndSelect('perm.dashboard', 'dashboard');
@@ -64,7 +67,11 @@ export class PermissionsService {
       qb.andWhere('perm.module = :module', { module });
     }
 
-    return qb.orderBy('dashboard.code', 'ASC').addOrderBy('perm.module', 'ASC').addOrderBy('perm.code', 'ASC').getMany();
+    return qb
+      .orderBy('dashboard.code', 'ASC')
+      .addOrderBy('perm.module', 'ASC')
+      .addOrderBy('perm.code', 'ASC')
+      .getMany();
   }
 
   async setUserPermission(
@@ -94,9 +101,7 @@ export class PermissionsService {
 
     await this.auditService.log({
       userId: grantedBy,
-      action: isGranted
-        ? 'permission.grant_user'
-        : 'permission.deny_user',
+      action: isGranted ? 'permission.grant_user' : 'permission.deny_user',
       resourceType: 'user_permission',
       resourceId: saved.userPermissionId,
       details: { userId, permissionId, isGranted },

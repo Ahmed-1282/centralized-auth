@@ -8,7 +8,12 @@ import {
   Param,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { AgentsService } from './agents.service';
 import { CreateAgentDto, UpdateAgentDto } from './dto/agent.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';

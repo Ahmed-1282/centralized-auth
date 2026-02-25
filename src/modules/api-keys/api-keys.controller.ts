@@ -7,7 +7,12 @@ import {
   Param,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { ApiKeysService } from './api-keys.service';
 import { CreateApiKeyDto } from './dto/api-key.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -24,7 +29,9 @@ export class ApiKeysController {
   @ApiOperation({
     summary: 'Create an API key (raw key returned only once)',
   })
-  @ResponseMessage('API key created - save the raw key, it cannot be retrieved later')
+  @ResponseMessage(
+    'API key created - save the raw key, it cannot be retrieved later',
+  )
   async create(
     @Body() dto: CreateApiKeyDto,
     @CurrentUser() user: AuthenticatedUser,
