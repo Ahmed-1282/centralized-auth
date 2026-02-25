@@ -24,20 +24,20 @@ export class User {
   @Column({ length: 100, unique: true })
   username: string;
 
-  @Column({ length: 255, unique: true, nullable: true })
-  email: string;
+  @Column({ type: 'varchar', length: 255, unique: true, nullable: true })
+  email: string | null;
 
   @Column({ name: 'password_hash', length: 255 })
   passwordHash: string;
 
-  @Column({ name: 'full_name', length: 255, nullable: true })
-  fullName: string;
+  @Column({ name: 'full_name', type: 'varchar', length: 255, nullable: true })
+  fullName: string | null;
 
-  @Column({ length: 50, nullable: true })
-  phone: string;
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  phone: string | null;
 
-  @Column({ name: 'avatar_url', length: 500, nullable: true })
-  avatarUrl: string;
+  @Column({ name: 'avatar_url', type: 'varchar', length: 500, nullable: true })
+  avatarUrl: string | null;
 
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
@@ -45,11 +45,11 @@ export class User {
   @Column({ name: 'is_system_user', default: false })
   isSystemUser: boolean;
 
-  @Column({ name: 'partner_id', nullable: true })
+  @Column({ name: 'partner_id', type: 'uuid', nullable: true })
   partnerId: string | null;
 
   @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
-  lastLoginAt: Date;
+  lastLoginAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
@@ -58,7 +58,7 @@ export class User {
   updatedAt: Date;
 
   @DeleteDateColumn({ name: 'deleted_at', type: 'timestamptz' })
-  deletedAt: Date;
+  deletedAt: Date | null;
 
   @ManyToOne(() => Partner, (partner) => partner.users)
   @JoinColumn({ name: 'partner_id' })

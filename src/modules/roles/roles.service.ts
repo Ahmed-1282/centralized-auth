@@ -114,7 +114,7 @@ export class RolesService {
     const userRole = this.userRoleRepo.create({
       userId,
       roleId,
-      grantedBy,
+      grantedBy: grantedBy ?? null,
     });
 
     const saved = await this.userRoleRepo.save(userRole);

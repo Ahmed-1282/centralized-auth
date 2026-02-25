@@ -16,7 +16,7 @@ export class Agent {
   @PrimaryGeneratedColumn('uuid', { name: 'agent_id' })
   agentId: string;
 
-  @Column({ name: 'user_id', nullable: true })
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
   userId: string | null;
 
   @Column({ name: 'partner_id' })
@@ -25,11 +25,16 @@ export class Agent {
   @Column({ length: 20 })
   msisdn: string;
 
-  @Column({ name: 'subscriber_name', length: 255, nullable: true })
-  subscriberName: string;
+  @Column({
+    name: 'subscriber_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  subscriberName: string | null;
 
   @Column({ name: 'home_location', type: 'jsonb', nullable: true })
-  homeLocation: { lat: number; lng: number };
+  homeLocation: { lat: number; lng: number } | null;
 
   @Column({ length: 20, default: 'active' })
   status: string;

@@ -93,7 +93,7 @@ export class PermissionsService {
         userId,
         permissionId,
         isGranted,
-        grantedBy,
+        grantedBy: grantedBy ?? null,
       });
     }
 

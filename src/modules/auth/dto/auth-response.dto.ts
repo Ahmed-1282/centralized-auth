@@ -15,11 +15,11 @@ export class UserProfileDto {
   @ApiProperty()
   username: string;
 
-  @ApiProperty({ required: false })
-  email: string;
+  @ApiProperty({ required: false, nullable: true })
+  email: string | null;
 
-  @ApiProperty({ required: false })
-  fullName: string;
+  @ApiProperty({ required: false, nullable: true })
+  fullName: string | null;
 
   @ApiProperty()
   isSystemUser: boolean;

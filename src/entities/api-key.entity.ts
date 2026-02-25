@@ -39,10 +39,10 @@ export class ApiKey {
   expiresAt: Date | null;
 
   @Column({ name: 'last_used_at', type: 'timestamptz', nullable: true })
-  lastUsedAt: Date;
+  lastUsedAt: Date | null;
 
-  @Column({ name: 'created_by', nullable: true })
-  createdBy: string;
+  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  createdBy: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

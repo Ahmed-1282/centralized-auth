@@ -21,20 +21,20 @@ export class Partner {
   @Column({ length: 255 })
   name: string;
 
-  @Column({ length: 100, unique: true, nullable: true })
-  slug: string;
+  @Column({ type: 'varchar', length: 100, unique: true, nullable: true })
+  slug: string | null;
 
   @Column({ type: 'text', nullable: true })
-  address: string;
+  address: string | null;
 
-  @Column({ name: 'contact_no', length: 50, nullable: true })
-  contactNo: string;
+  @Column({ name: 'contact_no', type: 'varchar', length: 50, nullable: true })
+  contactNo: string | null;
 
-  @Column({ length: 255, nullable: true })
-  email: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  email: string | null;
 
-  @Column({ name: 'logo_url', length: 500, nullable: true })
-  logoUrl: string;
+  @Column({ name: 'logo_url', type: 'varchar', length: 500, nullable: true })
+  logoUrl: string | null;
 
   @Column({ type: 'bigint', default: 0 })
   credits: number;
@@ -55,7 +55,7 @@ export class Partner {
   updatedAt: Date;
 
   @DeleteDateColumn({ name: 'deleted_at', type: 'timestamptz' })
-  deletedAt: Date;
+  deletedAt: Date | null;
 
   @OneToMany(() => User, (user) => user.partner)
   users: User[];
