@@ -13,7 +13,7 @@ import { PartnerDashboard } from './partner-dashboard.entity';
 import { PartnerFeatureToggle } from './partner-feature-toggle.entity';
 import { ApiKey } from './api-key.entity';
 
-@Entity('partners_v2')
+@Entity('partners')
 export class Partner {
   @PrimaryGeneratedColumn('uuid', { name: 'partner_id' })
   partnerId: string;

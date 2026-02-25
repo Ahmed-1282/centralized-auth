@@ -1,15 +1,11 @@
 -- ============================================================
--- GIS Auth - Database Schema Migration
--- Run against: GIS_v2 database
+-- GIS Auth - Database Schema (Fresh DB)
 -- ============================================================
 
 BEGIN;
 
--- 1. Partners (enhanced - replaces existing partners table)
--- NOTE: If migrating, rename old table first:
---   ALTER TABLE partners RENAME TO partners_legacy;
-
-CREATE TABLE IF NOT EXISTS partners_v2 (
+-- 1. Partners
+CREATE TABLE IF NOT EXISTS partners (
     partner_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(255) NOT NULL,
     slug            VARCHAR(100) UNIQUE,
@@ -75,7 +71,7 @@ CREATE TABLE IF NOT EXISTS users (
     avatar_url      VARCHAR(500),
     is_active       BOOLEAN DEFAULT TRUE,
     is_system_user  BOOLEAN DEFAULT FALSE,
-    partner_id      UUID REFERENCES partners_v2(partner_id),
+    partner_id      UUID REFERENCES partners(partner_id),
     last_login_at   TIMESTAMPTZ,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     updated_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -109,7 +105,7 @@ CREATE TABLE IF NOT EXISTS user_permissions (
 
 -- 9. Partner-Dashboard access
 CREATE TABLE IF NOT EXISTS partner_dashboards (
-    partner_id      UUID NOT NULL REFERENCES partners_v2(partner_id) ON DELETE CASCADE,
+    partner_id      UUID NOT NULL REFERENCES partners(partner_id) ON DELETE CASCADE,
     dashboard_id    UUID NOT NULL REFERENCES dashboards(dashboard_id) ON DELETE CASCADE,
     is_enabled      BOOLEAN DEFAULT TRUE,
     enabled_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -120,7 +116,7 @@ CREATE TABLE IF NOT EXISTS partner_dashboards (
 
 -- 10. Partner feature toggles
 CREATE TABLE IF NOT EXISTS partner_feature_toggles (
-    partner_id      UUID NOT NULL REFERENCES partners_v2(partner_id) ON DELETE CASCADE,
+    partner_id      UUID NOT NULL REFERENCES partners(partner_id) ON DELETE CASCADE,
     permission_id   UUID NOT NULL REFERENCES permissions(permission_id) ON DELETE CASCADE,
     is_enabled      BOOLEAN DEFAULT TRUE,
     PRIMARY KEY (partner_id, permission_id)
@@ -130,7 +126,7 @@ CREATE TABLE IF NOT EXISTS partner_feature_toggles (
 CREATE TABLE IF NOT EXISTS agents (
     agent_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID UNIQUE REFERENCES users(user_id),
-    partner_id      UUID NOT NULL REFERENCES partners_v2(partner_id),
+    partner_id      UUID NOT NULL REFERENCES partners(partner_id),
     msisdn          VARCHAR(20) NOT NULL,
     subscriber_name VARCHAR(255),
     home_location   JSONB,
@@ -158,7 +154,7 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id) WH
 -- 13. API keys
 CREATE TABLE IF NOT EXISTS api_keys (
     api_key_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    partner_id      UUID NOT NULL REFERENCES partners_v2(partner_id),
+    partner_id      UUID NOT NULL REFERENCES partners(partner_id),
     key_hash        VARCHAR(255) NOT NULL,
     key_prefix      VARCHAR(12) NOT NULL,
     name            VARCHAR(255) NOT NULL,
