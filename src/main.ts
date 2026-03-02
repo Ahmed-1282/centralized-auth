@@ -5,6 +5,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { networkInterfaces } from 'os';
+import * as express from 'express';
+import { join } from 'path';
 
 function getLocalIPAddress(): string {
   const interfaces = networkInterfaces();
@@ -54,6 +56,12 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  // Serve E2E test reports at /test-reports/
+  app.use(
+    '/test-reports',
+    express.static(join(__dirname, '..', 'test-reports')),
+  );
+
   // Start Server
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
@@ -62,7 +70,8 @@ async function bootstrap() {
 
   console.log(`\n✅ Application is running on: ${localUrl}`);
   console.log(`📡 Network URL (share with partners): ${networkUrl}/api/docs`);
-  console.log(`📚 Swagger Docs: ${localUrl}/api/docs\n`);
+  console.log(`📚 Swagger Docs: ${localUrl}/api/docs`);
+  console.log(`📊 Test Reports: ${localUrl}/test-reports/\n`);
 }
 
 void bootstrap();

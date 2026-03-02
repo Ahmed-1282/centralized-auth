@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   Query,
+  HttpCode,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -81,6 +82,7 @@ export class RolesController {
   }
 
   @Post('revoke')
+  @HttpCode(200)
   @ApiOperation({ summary: 'Revoke a role from a user' })
   @ResponseMessage('Role revoked')
   async revoke(
