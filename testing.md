@@ -231,7 +231,7 @@ afterAll: CSV report + DB cleanup (hard delete all test data)
 | 60 | GET | `/api/users/:id` | 404 | Non-existent user |
 | 61 | GET | `/api/roles/:id` | 404 | Non-existent role |
 | 62 | GET | `/api/agents/:id` | 404 | Non-existent agent |
-| 63 | POST | `/api/roles/revoke` | 404 | Revoke non-existent role assignment |
+| 63 | POST | `/api/roles/revoke` | 400 | Revoke non-existent role assignment |
 | 64 | POST | `/api/agents` | 409 | Duplicate msisdn for same partner |
 | 65 | DELETE | `/api/api-keys/:id` | 404 | Revoke non-existent API key |
 
@@ -293,6 +293,23 @@ Each row contains:
 | Result | PASS or FAIL |
 | Duration (ms) | How long the API call took |
 | Error | Error message if failed |
+
+## Viewing Reports in Browser
+
+After running tests, you can view the HTML reports in your browser:
+
+```
+http://localhost:3001/test-reports/
+```
+
+This shows an index page listing all previous test runs. Click any report to see:
+- Summary stats (total, passed, failed, duration)
+- Module-level breakdown with color-coded cards
+- Full results table with method badges and PASS/FAIL indicators
+
+The server serves the `test-reports/` directory as static files via Express middleware. Both HTML reports and CSV files are available for download.
+
+> **Note:** The server must be running (`npm run start:dev`) to access reports in the browser.
 
 ## Database Cleanup
 
@@ -374,7 +391,9 @@ Validation & Error Handling
   PASS  Validation: 8/8 (350ms)
 ----------------------------------------
   Total: 65 | Passed: 65 | Failed: 0 | Time: 6760ms
-  CSV: /path/to/test-reports/e2e-report-2026-03-02T12-00-00.csv
+  CSV:  /path/to/test-reports/e2e-report-2026-03-02T12-00-00.csv
+  HTML: /path/to/test-reports/e2e-report-2026-03-02T12-00-00.html
+  View: http://localhost:3001/test-reports/
 ========================================
   Cleanup: all test data removed from database
 
