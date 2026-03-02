@@ -95,6 +95,8 @@ src/
 │   ├── refresh-token.entity.ts
 │   ├── api-key.entity.ts
 │   ├── audit-log.entity.ts
+│   ├── test-report-run.entity.ts
+│   ├── test-report-result.entity.ts
 │   └── index.ts                             # Barrel export
 ├── modules/
 │   ├── auth/                                # Login, refresh, logout, /me
@@ -104,9 +106,10 @@ src/
 │   ├── permissions/                         # Permission management + toggles
 │   ├── agents/                              # Agent CRUD
 │   ├── api-keys/                            # API key provisioning
-│   └── audit/                               # Audit logging service (global)
+│   ├── audit/                               # Audit logging service (global)
+│   └── test-reports/                        # E2E test report storage & HTML views
 └── sql/
-    ├── 001_auth_schema.sql                  # CREATE TABLE (14 tables)
+    ├── 001_auth_schema.sql                  # CREATE TABLE (16 tables)
     ├── 002_migrate_existing_data.sql        # Legacy data migration
     └── 003_seed_data.sql                    # Dashboards, roles, permissions seed
 ```
@@ -115,7 +118,7 @@ src/
 
 ## 3. Database Schema
 
-### 14 Tables Overview
+### 16 Tables Overview
 
 ```
 ┌──────────────────────┐     ┌──────────────────┐     ┌──────────────────────┐
@@ -228,6 +231,23 @@ src/
 │ created_by (FK)      │
 │ created_at           │
 └──────────────────────┘
+
+┌──────────────────────┐     ┌──────────────────────┐
+│   test_report_runs   │     │  test_report_results  │
+│──────────────────────│     │──────────────────────│
+│ run_id (PK)          │◄───│ run_id (FK)           │
+│ total_tests          │     │ result_id (PK)        │
+│ passed               │     │ module                │
+│ failed               │     │ method                │
+│ total_duration       │     │ endpoint              │
+│ module_summary(JSONB)│     │ description           │
+│ created_at           │     │ status_code           │
+└──────────────────────┘     │ expected_status       │
+                              │ response_status       │
+                              │ passed                │
+                              │ duration_ms           │
+                              │ error_message         │
+                              └──────────────────────┘
 ```
 
 ### Table Purposes
@@ -248,6 +268,8 @@ src/
 | `partner_feature_toggles` | 3 cols (composite PK) | Feature-level on/off per partner per permission |
 | `api_keys` | 11 cols + created_at | Third-party API access with hashed keys, scopes, rate limits |
 | `audit_logs` | 8 cols + created_at | Append-only action trail — user, action, resource, details, IP |
+| `test_report_runs` | 6 cols + created_at | E2E test run summaries — pass/fail counts, duration, JSONB module breakdown |
+| `test_report_results` | 12 cols | Individual test outcomes per run — endpoint, method, status, duration, error |
 
 ---
 
@@ -590,9 +612,12 @@ AppModule
   ├── AgentsModule
   │     ├── AgentsController: CRUD
   │     └── AgentsService
-  └── ApiKeysModule
-        ├── ApiKeysController: create, list, revoke
-        └── ApiKeysService
+  ├── ApiKeysModule
+  │     ├── ApiKeysController: create, list, revoke
+  │     └── ApiKeysService
+  └── TestReportsModule
+        ├── TestReportsController: list, findOne, latest HTML, index HTML, run HTML, delete
+        └── TestReportsService: DB queries + HTML report generation
 ```
 
 ### Global Providers (APP_GUARD)
@@ -685,6 +710,17 @@ providers: [
 | GET | `/api-keys` | Bearer | List API keys (filter: partnerId) |
 | POST | `/api-keys/:apiKeyId/revoke` | Bearer | Revoke an API key |
 
+### Test Reports (`/api/test-reports`)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/test-reports` | Public | List all test report runs (JSON) |
+| GET | `/test-reports/latest/html` | Public | Latest test report as styled HTML page |
+| GET | `/test-reports/index` | Public | Index page listing all runs as HTML |
+| GET | `/test-reports/:runId` | Public | Get a specific run with all results (JSON) |
+| GET | `/test-reports/:runId/html` | Public | Specific test report as styled HTML page |
+| DELETE | `/test-reports/:runId` | Bearer | Delete a test report run |
+
 ### Health (`/api`)
 
 | Method | Endpoint | Auth | Description |
@@ -765,7 +801,7 @@ Full permissions: `surveys.submit`, `boundaries.mark`, `photos.upload`, `tasks.v
 ### Execution Order (Fresh Database)
 
 ```
-1. sql/001_auth_schema.sql       ← Creates all 14 tables
+1. sql/001_auth_schema.sql       ← Creates all 16 tables
 2. sql/003_seed_data.sql         ← Seeds dashboards, roles, permissions, role_permissions
 3. Create first admin user       ← Via SQL or the /api/auth endpoint after startup
 ```
