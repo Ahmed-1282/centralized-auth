@@ -68,4 +68,8 @@ export class ToggleDashboardAccessDto {
 
   @ApiProperty({ example: true })
   isEnabled: boolean;
+
+  @ApiPropertyOptional({ example: { max_users: 50, max_farms: 100 } })
+  @IsOptional()
+  config?: Record<string, any>;
 }

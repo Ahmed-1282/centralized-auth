@@ -89,6 +89,7 @@ export class PartnersController {
       dto.dashboardCode,
       dto.isEnabled,
       user.userId,
+      dto.config,
     );
   }
 

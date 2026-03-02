@@ -91,6 +91,7 @@ export class PartnersService {
     dashboardCode: string,
     isEnabled: boolean,
     enabledBy?: string,
+    config?: Record<string, any>,
   ): Promise<PartnerDashboard> {
     const dashboard = await this.dashboardRepo.findOne({
       where: { code: dashboardCode },
@@ -105,12 +106,14 @@ export class PartnersService {
       access.isEnabled = isEnabled;
       access.enabledBy = enabledBy ?? null;
       access.enabledAt = new Date();
+      if (config) access.config = config;
     } else {
       access = this.partnerDashboardRepo.create({
         partnerId,
         dashboardId: dashboard.dashboardId,
         isEnabled,
         enabledBy,
+        config: config ?? {},
       });
     }
 
