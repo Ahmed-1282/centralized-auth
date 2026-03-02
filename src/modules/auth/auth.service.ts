@@ -75,9 +75,8 @@ export class AuthService {
 
     // Store refresh token
     const refreshTokenHash = await bcrypt.hash(tokens.refreshToken, 10);
-    const refreshTtl = this.configService.get<number>(
-      'JWT_REFRESH_TTL',
-      604800,
+    const refreshTtl = Number(
+      this.configService.get('JWT_REFRESH_TTL', 604800),
     );
 
     await this.refreshTokenRepo.save(
@@ -176,9 +175,8 @@ export class AuthService {
 
     // Store new refresh token
     const refreshTokenHash = await bcrypt.hash(tokens.refreshToken, 10);
-    const refreshTtl = this.configService.get<number>(
-      'JWT_REFRESH_TTL',
-      604800,
+    const refreshTtl = Number(
+      this.configService.get('JWT_REFRESH_TTL', 604800),
     );
 
     await this.refreshTokenRepo.save(
@@ -276,7 +274,7 @@ export class AuthService {
       })),
     };
 
-    const accessTtl = this.configService.get<number>('JWT_ACCESS_TTL', 900);
+    const accessTtl = Number(this.configService.get('JWT_ACCESS_TTL', 900));
     const accessToken = this.jwtService.sign(payload, {
       expiresIn: accessTtl,
     });

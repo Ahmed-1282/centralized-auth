@@ -33,7 +33,7 @@ export class UsersService {
       throw new ConflictException('Username or email already exists');
     }
 
-    const rounds = this.configService.get<number>('BCRYPT_ROUNDS', 12);
+    const rounds = Number(this.configService.get('BCRYPT_ROUNDS', 12));
     const passwordHash = await bcrypt.hash(dto.password, rounds);
 
     const user = this.userRepo.create({
@@ -132,7 +132,7 @@ export class UsersService {
     newPassword: string,
     changedBy?: string,
   ): Promise<void> {
-    const rounds = this.configService.get<number>('BCRYPT_ROUNDS', 12);
+    const rounds = Number(this.configService.get('BCRYPT_ROUNDS', 12));
     const passwordHash = await bcrypt.hash(newPassword, rounds);
     await this.userRepo.update(userId, { passwordHash });
 
