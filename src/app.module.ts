@@ -34,6 +34,7 @@ import { Dashboard } from './entities/dashboard.entity';
     // Global Configuration Module
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: [`.env.${process.env.NODE_ENV || 'local'}`],
     }),
 
     // PRIMARY CONNECTION (GIS_v2 Database)
