@@ -37,8 +37,8 @@ This runs **65 automated tests** across **11 modules** sequentially with verbose
 
 1. **Health check** — verifies the server is running at `http://localhost:3001`
 2. **65 tests execute** sequentially across 11 modules (each module produces IDs for the next)
-3. **CSV report** is generated in `test-reports/e2e-report-<timestamp>.csv`
-4. **Console summary** prints pass/fail per module with timing
+3. **Report saved to database** — test results are inserted into `test_report_runs` and `test_report_results` tables
+4. **Console summary** prints pass/fail per module with timing + links to view report in browser
 5. **Database cleanup** — all test data is hard-deleted via raw SQL queries (13 tables cleaned in FK-safe order)
 
 The database is left clean after every run — no test data remains.
@@ -81,7 +81,7 @@ Non-System User Flow (partner user login, profile, access, refresh)
 Validation & Errors (duplicates, 404s, bad input)
     |
     v
-afterAll: CSV report + DB cleanup (hard delete all test data)
+afterAll: Save report to DB + cleanup test data (hard delete)
 ```
 
 ## Test Cases (65 total)
@@ -271,43 +271,34 @@ The access token expires in **15 minutes** (900 seconds). Use the refresh endpoi
 
 **Logout behavior:** `POST /api/auth/logout` revokes a single refresh token. The access token (JWT) remains valid until it expires — it's stateless and cannot be individually revoked. `POST /api/auth/logout-all` revokes all refresh tokens for the user.
 
-## CSV Report
+## Test Reports (Database-Backed)
 
-After every test run, a CSV report is generated at:
+Test results are stored in two PostgreSQL tables:
 
-```
-test-reports/e2e-report-<timestamp>.csv
-```
+| Table | Purpose |
+|-------|---------|
+| `test_report_runs` | One row per test run (totals, pass/fail counts, module summary as JSONB) |
+| `test_report_results` | One row per individual test (module, method, endpoint, status, duration, etc.) |
 
-Each row contains:
+Reports persist across test runs — each run creates a new entry. Test **data** is cleaned up, but test **reports** are kept.
 
-| Column | Description |
-|--------|-------------|
-| Module | Auth, Partners, Users, Auth Negative, Token Lifecycle, etc. |
-| Method | GET, POST, PATCH, DELETE |
-| Endpoint | The API path tested |
-| Description | What the test does |
-| Status Code | Actual HTTP status returned |
-| Expected Status | What we expected |
-| Response Status | `success` or `error` from response body |
-| Result | PASS or FAIL |
-| Duration (ms) | How long the API call took |
-| Error | Error message if failed |
+### Viewing Reports in Browser
 
-## Viewing Reports in Browser
+| URL | Description |
+|-----|-------------|
+| `http://localhost:3001/api/test-reports/latest/html` | Latest report as styled HTML page |
+| `http://localhost:3001/api/test-reports/index` | Index page listing all test runs |
+| `http://localhost:3001/api/test-reports/:runId/html` | Specific run as styled HTML |
+| `http://localhost:3001/api/test-reports` | List all runs (JSON API) |
+| `http://localhost:3001/api/test-reports/:runId` | Specific run with all results (JSON API) |
 
-After running tests, you can view the HTML reports in your browser:
-
-```
-http://localhost:3001/test-reports/
-```
-
-This shows an index page listing all previous test runs. Click any report to see:
+The HTML reports feature:
+- Dark theme matching Swagger UI
 - Summary stats (total, passed, failed, duration)
-- Module-level breakdown with color-coded cards
-- Full results table with method badges and PASS/FAIL indicators
+- Module-level breakdown with color-coded cards (green=pass, red=fail)
+- Full results table with method badges (GET=blue, POST=green, PATCH=orange, DELETE=red) and PASS/FAIL indicators
 
-The server serves the `test-reports/` directory as static files via Express middleware. Both HTML reports and CSV files are available for download.
+All report endpoints are **public** (no authentication required). Reports are also visible in Swagger under the "Test Reports" tag.
 
 > **Note:** The server must be running (`npm run start:dev`) to access reports in the browser.
 
@@ -391,9 +382,10 @@ Validation & Error Handling
   PASS  Validation: 8/8 (350ms)
 ----------------------------------------
   Total: 65 | Passed: 65 | Failed: 0 | Time: 6760ms
-  CSV:  /path/to/test-reports/e2e-report-2026-03-02T12-00-00.csv
-  HTML: /path/to/test-reports/e2e-report-2026-03-02T12-00-00.html
-  View: http://localhost:3001/test-reports/
+  Report saved to database
+  View:  http://localhost:3001/api/test-reports/<run-id>/html
+  Latest: http://localhost:3001/api/test-reports/latest/html
+  Index: http://localhost:3001/api/test-reports/index
 ========================================
   Cleanup: all test data removed from database
 
@@ -411,7 +403,7 @@ Tests:       65 passed, 65 total
 | `unique constraint` errors | Re-running tests | Tests use `Date.now()` suffix — should be idempotent. If still failing, old test data exists. |
 | `Dashboard not found` | Seed data not loaded | Run `sql/003_seed_data.sql` |
 | Timeout errors | Bcrypt is slow with 12 rounds | `testTimeout: 30000` in jest config handles this |
-| `Cleanup failed` | DB connection issue | Check `.env.local` has correct DB_HOST, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD |
+| `Cleanup failed` | DB connection issue | Check `.env.local` has correct DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS |
 | Auth negative tests failing with wrong status | Response format mismatch | Ensure `AllExceptionsFilter` is applied globally in `app.module.ts` |
 
 ## npm Scripts Reference
@@ -420,6 +412,6 @@ Tests:       65 passed, 65 total
 |---------|-------------|
 | `npm run start:dev` | Start server (local DB via `.env.local`) |
 | `npm run start:dev:prod` | Start server (production DB via `.env.prod`) |
-| `npm run dev:test` | Run E2E API test pipeline (65 tests + CSV + cleanup) |
+| `npm run dev:test` | Run E2E API test pipeline (65 tests + DB report + cleanup) |
 | `npm run test:e2e` | Run all E2E tests (including app.e2e-spec.ts) |
 | `npm run test` | Run unit tests |

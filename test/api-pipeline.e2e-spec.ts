@@ -4,7 +4,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 import request from 'supertest';
-import * as fs from 'fs';
 import * as path from 'path';
 import { Client } from 'pg';
 import * as dotenv from 'dotenv';
@@ -186,50 +185,9 @@ beforeAll(async () => {
 });
 
 // ============================================================
-// Write CSV report after all tests complete
+// Save test report to database after all tests complete
 // ============================================================
 afterAll(async () => {
-  const reportDir = path.resolve(__dirname, '..', 'test-reports');
-  if (!fs.existsSync(reportDir)) {
-    fs.mkdirSync(reportDir, { recursive: true });
-  }
-
-  const date = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const csvPath = path.join(reportDir, `e2e-report-${date}.csv`);
-
-  // CSV header
-  const header = [
-    'Module',
-    'Method',
-    'Endpoint',
-    'Description',
-    'Status Code',
-    'Expected Status',
-    'Response Status',
-    'Result',
-    'Duration (ms)',
-    'Error',
-  ].join(',');
-
-  // CSV rows
-  const rows = testResults.map((r) =>
-    [
-      r.module,
-      r.method,
-      r.endpoint,
-      `"${r.description}"`,
-      r.statusCode,
-      r.expectedStatus,
-      r.responseStatus,
-      r.passed ? 'PASS' : 'FAIL',
-      r.durationMs,
-      `"${r.errorMessage.replace(/"/g, '""')}"`,
-    ].join(','),
-  );
-
-  const csv = [header, ...rows].join('\n');
-  fs.writeFileSync(csvPath, csv, 'utf-8');
-
   // Summary
   const passed = testResults.filter((r) => r.passed).length;
   const failed = testResults.filter((r) => !r.passed).length;
@@ -245,7 +203,7 @@ afterAll(async () => {
     return { name: m, passed: modPassed, total: modTotal, time: modTime };
   });
 
-  const moduleSummary = moduleStats
+  const moduleSummaryText = moduleStats
     .map(
       (s) =>
         `  ${s.passed === s.total ? 'PASS' : 'FAIL'}  ${s.name}: ${s.passed}/${s.total} (${Math.round(s.time)}ms)`,
@@ -253,188 +211,104 @@ afterAll(async () => {
     .join('\n');
 
   // ========================================================
-  // HTML Report
+  // Save to database
   // ========================================================
-  const htmlPath = path.join(reportDir, `e2e-report-${date}.html`);
-  const methodColor: Record<string, string> = {
-    GET: '#61affe',
-    POST: '#49cc90',
-    PATCH: '#fca130',
-    PUT: '#fca130',
-    DELETE: '#f93e3e',
-  };
+  const reportClient = new Client({
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT),
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+  });
 
-  const moduleCardsHtml = moduleStats
-    .map((s) => {
-      const allPassed = s.passed === s.total;
-      const bg = allPassed ? '#1b4332' : '#5c1a1a';
-      const border = allPassed ? '#2d6a4f' : '#922b21';
-      return `<div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:12px 18px;min-width:150px">
-        <div style="font-size:13px;color:#aaa">${s.name}</div>
-        <div style="font-size:22px;font-weight:700;color:${allPassed ? '#49cc90' : '#f93e3e'}">${s.passed}/${s.total}</div>
-        <div style="font-size:11px;color:#888">${Math.round(s.time)}ms</div>
-      </div>`;
-    })
-    .join('\n');
+  let runId: string | null = null;
+  try {
+    await reportClient.connect();
 
-  const testRowsHtml = testResults
-    .map((r) => {
-      const mc = methodColor[r.method] || '#aaa';
-      const rc = r.passed ? '#49cc90' : '#f93e3e';
-      const rb = r.passed ? '#1b4332' : '#5c1a1a';
-      return `<tr>
-        <td>${r.module}</td>
-        <td><span style="background:${mc};color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${r.method}</span></td>
-        <td style="font-family:monospace;font-size:13px">${r.endpoint}</td>
-        <td>${r.description}</td>
-        <td style="text-align:center">${r.statusCode}</td>
-        <td style="text-align:center">${r.expectedStatus}</td>
-        <td style="text-align:center"><span style="background:${rb};color:${rc};padding:2px 10px;border-radius:4px;font-weight:700;font-size:12px">${r.passed ? 'PASS' : 'FAIL'}</span></td>
-        <td style="text-align:right">${Math.round(r.durationMs)}ms</td>
-        <td style="color:#f93e3e;font-size:12px">${r.errorMessage || ''}</td>
-      </tr>`;
-    })
-    .join('\n');
+    // Insert the run summary
+    const runResult = await reportClient.query(
+      `INSERT INTO test_report_runs (total_tests, passed, failed, total_duration, module_summary)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING run_id`,
+      [
+        passed + failed,
+        passed,
+        failed,
+        Math.round(totalTime),
+        JSON.stringify(moduleStats),
+      ],
+    );
+    runId = runResult.rows[0].run_id;
 
-  const htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>E2E Test Report — ${date}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;padding:24px}
-  h1{font-size:24px;font-weight:600;margin-bottom:4px}
-  .subtitle{color:#8b949e;font-size:14px;margin-bottom:24px}
-  .stats{display:flex;gap:16px;margin-bottom:24px;font-size:15px}
-  .stats .total{color:#c9d1d9;font-weight:700}
-  .stats .pass{color:#49cc90;font-weight:700}
-  .stats .fail{color:#f93e3e;font-weight:700}
-  .stats .time{color:#8b949e}
-  .modules{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px}
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  th{text-align:left;padding:10px 12px;background:#161b22;border-bottom:1px solid #30363d;color:#8b949e;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
-  td{padding:8px 12px;border-bottom:1px solid #21262d}
-  tr:hover{background:#161b22}
-  a{color:#58a6ff;text-decoration:none}
-  a:hover{text-decoration:underline}
-  .back{margin-bottom:20px;display:inline-block}
-</style>
-</head>
-<body>
-<a class="back" href="index.html">&larr; All Reports</a>
-<h1>E2E Test Report</h1>
-<div class="subtitle">${new Date().toLocaleString()} &mdash; GIS Auth API</div>
+    // Batch insert all test results
+    if (testResults.length > 0) {
+      const values: any[] = [];
+      const placeholders: string[] = [];
+      let idx = 1;
 
-<div class="stats">
-  <span class="total">Total: ${passed + failed}</span>
-  <span class="pass">Passed: ${passed}</span>
-  <span class="fail">Failed: ${failed}</span>
-  <span class="time">${Math.round(totalTime)}ms</span>
-</div>
+      for (const r of testResults) {
+        placeholders.push(
+          `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`,
+        );
+        values.push(
+          runId,
+          r.module,
+          r.method,
+          r.endpoint,
+          r.description,
+          r.statusCode,
+          r.expectedStatus,
+          r.responseStatus,
+          r.passed,
+          Math.round(r.durationMs),
+          r.errorMessage || null,
+        );
+      }
 
-<div class="modules">
-${moduleCardsHtml}
-</div>
+      await reportClient.query(
+        `INSERT INTO test_report_results
+          (run_id, module, method, endpoint, description, status_code, expected_status, response_status, passed, duration_ms, error_message)
+         VALUES ${placeholders.join(', ')}`,
+        values,
+      );
+    }
 
-<table>
-<thead>
-<tr>
-  <th>Module</th><th>Method</th><th>Endpoint</th><th>Description</th>
-  <th>Status</th><th>Expected</th><th>Result</th><th>Duration</th><th>Error</th>
-</tr>
-</thead>
-<tbody>
-${testRowsHtml}
-</tbody>
-</table>
-</body>
-</html>`;
+    console.log('  Report saved to database');
+  } catch (reportErr: any) {
+    console.error('  Failed to save report to DB:', reportErr.message);
+  } finally {
+    await reportClient.end();
+  }
 
-  fs.writeFileSync(htmlPath, htmlContent, 'utf-8');
-
-  // ========================================================
-  // Index HTML — lists all reports (newest first)
-  // ========================================================
-  const reportFiles = fs
-    .readdirSync(reportDir)
-    .filter((f) => f.endsWith('.html') && f !== 'index.html')
-    .sort()
-    .reverse();
-
-  const indexRows = reportFiles
-    .map((f) => {
-      const csvName = f.replace('.html', '.csv');
-      const ts = f
-        .replace('e2e-report-', '')
-        .replace('.html', '')
-        .replace(/T/, ' ')
-        .replace(/-/g, (_, offset: number) => (offset > 10 ? ':' : '-'));
-      return `<tr>
-        <td><a href="${f}">${ts}</a></td>
-        <td><a href="${csvName}">CSV</a></td>
-      </tr>`;
-    })
-    .join('\n');
-
-  const indexHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>E2E Test Reports — GIS Auth</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;padding:24px}
-  h1{font-size:24px;font-weight:600;margin-bottom:4px}
-  .subtitle{color:#8b949e;font-size:14px;margin-bottom:24px}
-  table{width:100%;max-width:600px;border-collapse:collapse;font-size:14px}
-  th{text-align:left;padding:10px 12px;background:#161b22;border-bottom:1px solid #30363d;color:#8b949e;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
-  td{padding:10px 12px;border-bottom:1px solid #21262d}
-  tr:hover{background:#161b22}
-  a{color:#58a6ff;text-decoration:none}
-  a:hover{text-decoration:underline}
-</style>
-</head>
-<body>
-<h1>E2E Test Reports</h1>
-<div class="subtitle">GIS Auth API &mdash; ${reportFiles.length} report(s)</div>
-<table>
-<thead><tr><th>Report</th><th>Download</th></tr></thead>
-<tbody>
-${indexRows}
-</tbody>
-</table>
-</body>
-</html>`;
-
-  fs.writeFileSync(path.join(reportDir, 'index.html'), indexHtml, 'utf-8');
-
+  const port = process.env.PORT || 3001;
   console.log('\n========================================');
   console.log('  E2E TEST REPORT');
   console.log('========================================');
-  console.log(moduleSummary);
+  console.log(moduleSummaryText);
   console.log('----------------------------------------');
   console.log(
     `  Total: ${passed + failed} | Passed: ${passed} | Failed: ${failed} | Time: ${Math.round(totalTime)}ms`,
   );
-  console.log(`  CSV:  ${csvPath}`);
-  console.log(`  HTML: ${htmlPath}`);
-  console.log(
-    `  View: http://localhost:${process.env.PORT || 3001}/test-reports/`,
-  );
+  if (runId) {
+    console.log(
+      `  View:  http://localhost:${port}/api/test-reports/${runId}/html`,
+    );
+    console.log(
+      `  Latest: http://localhost:${port}/api/test-reports/latest/html`,
+    );
+    console.log(`  Index: http://localhost:${port}/api/test-reports/index`);
+  }
   console.log('========================================\n');
 
   // ========================================================
   // DATABASE CLEANUP — remove all test data so DB stays clean
   // ========================================================
   const client = new Client({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 5432,
-    database: process.env.DB_NAME || 'GIS_auth',
-    user: process.env.DB_USERNAME || 'postgres',
-    password: process.env.DB_PASSWORD || '1282',
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT),
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
   });
 
   try {

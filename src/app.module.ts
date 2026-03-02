@@ -18,6 +18,7 @@ import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
+import { TestReportsModule } from './modules/test-reports/test-reports.module';
 
 // Entities needed by global guards
 import { TypeOrmModule as TypeOrmFeature } from '@nestjs/typeorm';
@@ -73,6 +74,7 @@ import { Dashboard } from './entities/dashboard.entity';
     PermissionsModule,
     AgentsModule,
     ApiKeysModule,
+    TestReportsModule,
   ],
   controllers: [AppController],
   providers: [

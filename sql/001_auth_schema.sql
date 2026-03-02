@@ -183,4 +183,33 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
 
+-- 15. Test report runs (one row per E2E test execution)
+CREATE TABLE IF NOT EXISTS test_report_runs (
+    run_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    total_tests     INT NOT NULL DEFAULT 0,
+    passed          INT NOT NULL DEFAULT 0,
+    failed          INT NOT NULL DEFAULT 0,
+    total_duration  INT NOT NULL DEFAULT 0,
+    module_summary  JSONB NOT NULL DEFAULT '[]',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_test_report_runs_created ON test_report_runs(created_at);
+
+-- 16. Test report results (individual test outcomes linked to a run)
+CREATE TABLE IF NOT EXISTS test_report_results (
+    result_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    run_id          UUID NOT NULL REFERENCES test_report_runs(run_id) ON DELETE CASCADE,
+    module          VARCHAR(100) NOT NULL,
+    method          VARCHAR(10) NOT NULL,
+    endpoint        VARCHAR(255) NOT NULL,
+    description     VARCHAR(500) NOT NULL,
+    status_code     INT NOT NULL,
+    expected_status INT NOT NULL,
+    response_status VARCHAR(20) NOT NULL,
+    passed          BOOLEAN NOT NULL,
+    duration_ms     INT NOT NULL DEFAULT 0,
+    error_message   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_test_report_results_run ON test_report_results(run_id);
+
 COMMIT;
