@@ -10,7 +10,8 @@ import * as dotenv from 'dotenv';
 
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.local') });
 
-const BASE_URL = 'http://localhost:3001';
+const BASE_URL =
+  process.env.TEST_BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
 const TIMESTAMP = Date.now();
 
 // ============================================================
