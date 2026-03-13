@@ -1,4 +1,4 @@
-# GIS Auth - Database Schema Explanation
+# Centralized Auth - Database Schema Explanation
 
 A complete, manager-friendly explanation of the entire database schema.
 

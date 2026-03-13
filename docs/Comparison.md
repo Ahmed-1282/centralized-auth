@@ -2,7 +2,7 @@
 
 ## Quick Summary
 
-| Metric | Old (GIS_v2) | New (GIS Auth) |
+| Metric | Old (GIS_v2) | New (Centralized Auth) |
 |--------|-------------|----------------|
 | Auth tables | 5 (messy) | 14 (purpose-built) |
 | Permission model | 30 hardcoded booleans | Dynamic RBAC with 60+ granular permissions |

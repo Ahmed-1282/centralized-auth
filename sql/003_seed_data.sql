@@ -1,5 +1,5 @@
 -- ============================================================
--- GIS Auth - Seed Data
+-- Centralized Auth - Seed Data
 -- Run AFTER 001_auth_schema.sql
 -- Populates: dashboards, roles, permissions, role_permissions
 -- ============================================================

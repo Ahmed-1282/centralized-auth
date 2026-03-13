@@ -1,8 +1,8 @@
-# GIS Auth — API Testing Guide
+# Centralized Auth — API Testing Guide
 
 ## Prerequisites
 
-1. **PostgreSQL** running on `localhost:5432` with database `GIS_auth`
+1. **PostgreSQL** running on `localhost:5432` with database `centralized_auth`
 2. **Schema created** — run `sql/001_auth_schema.sql`
 3. **Seed data loaded** — run `sql/003_seed_data.sql`
 4. **Superadmin user created** — run:

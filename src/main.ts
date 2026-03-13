@@ -42,7 +42,7 @@ async function bootstrap() {
 
   // Swagger Configuration
   const config = new DocumentBuilder()
-    .setTitle('GIS Auth API')
+    .setTitle('Centralized Auth API')
     .setDescription(
       'Centralized Authentication & Authorization API for the Agriculture Monitoring Platform. ' +
         'Manages users, partners, roles, permissions, and API keys across 6 interconnected dashboards.',

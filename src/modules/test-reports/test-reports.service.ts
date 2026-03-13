@@ -124,7 +124,7 @@ export class TestReportsService {
 <body>
 <a class="back" href="/api/test-reports/index">&larr; All Reports</a>
 <h1>E2E Test Report</h1>
-<div class="subtitle">${new Date(createdAt).toLocaleString()} &mdash; GIS Auth API</div>
+<div class="subtitle">${new Date(createdAt).toLocaleString()} &mdash; Centralized Auth API</div>
 
 <div class="stats">
   <span class="total">Total: ${passed + failed}</span>
@@ -175,7 +175,7 @@ ${testRowsHtml}
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>E2E Test Reports — GIS Auth</title>
+<title>E2E Test Reports — Centralized Auth</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;padding:24px}
@@ -191,7 +191,7 @@ ${testRowsHtml}
 </head>
 <body>
 <h1>E2E Test Reports</h1>
-<div class="subtitle">GIS Auth API &mdash; ${runs.length} run(s)</div>
+<div class="subtitle">Centralized Auth API &mdash; ${runs.length} run(s)</div>
 <table>
 <thead><tr><th>Date</th><th>Total</th><th>Passed</th><th>Failed</th><th>Duration</th><th>Status</th></tr></thead>
 <tbody>

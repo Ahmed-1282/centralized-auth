@@ -1,4 +1,4 @@
-# GIS Auth - Complete Authentication & Authorization System
+# Centralized Auth - Complete Authentication & Authorization System
 
 ## Table of Contents
 
@@ -860,9 +860,9 @@ BCRYPT_ROUNDS=12
 
 1. **Create the database** and run SQL scripts:
    ```bash
-   psql -h <host> -U postgres -c "CREATE DATABASE gis_auth;"
-   psql -h <host> -U postgres -d gis_auth -f sql/001_auth_schema.sql
-   psql -h <host> -U postgres -d gis_auth -f sql/003_seed_data.sql
+   psql -h <host> -U postgres -c "CREATE DATABASE centralized_auth;"
+   psql -h <host> -U postgres -d centralized_auth -f sql/001_auth_schema.sql
+   psql -h <host> -U postgres -d centralized_auth -f sql/003_seed_data.sql
    ```
 
 2. **Build & start application:**

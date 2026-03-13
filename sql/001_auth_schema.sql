@@ -1,5 +1,5 @@
 -- ============================================================
--- GIS Auth - Database Schema (Fresh DB)
+-- Centralized Auth - Database Schema (Fresh DB)
 -- ============================================================
 
 BEGIN;
