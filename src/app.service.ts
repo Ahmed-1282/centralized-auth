@@ -10,7 +10,7 @@ export class AppService implements OnModuleInit {
 
   onModuleInit() {
     if (this.dataSource.isInitialized) {
-      const dbName = String(this.dataSource.options.database || 'GIS_v2');
+      const dbName = String(this.dataSource.options.database || 'centralized_auth');
       this.logger.log(`✅  SUCCESS: Connected to ${dbName} Database!`);
     } else {
       this.logger.error('❌  ERROR: Database connection failed!');

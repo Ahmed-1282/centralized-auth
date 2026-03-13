@@ -38,7 +38,7 @@ import { Dashboard } from './entities/dashboard.entity';
       envFilePath: [`.env.${process.env.NODE_ENV || 'local'}`],
     }),
 
-    // PRIMARY CONNECTION (GIS_v2 Database)
+    // PRIMARY CONNECTION (centralized_auth Database)
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

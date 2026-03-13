@@ -10,7 +10,7 @@
    INSERT INTO users (username, email, password_hash, full_name, is_active, is_system_user)
    VALUES (
      'superadmin',
-     'superadmin@gis.local',
+     'superadmin@bkk.local',
      '$2b$12$lZ17W0XKGvPcyFW7LSK2teFp4nyL9atJ86swRjcfg9h/lrYreM/gy',
      'Super Admin', true, true
    );

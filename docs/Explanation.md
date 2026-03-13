@@ -73,7 +73,7 @@ When a user logs in, they get two tokens: a short-lived **access token** (~15 mi
 
 ### `dashboards` — The Applications
 
-Each dashboard represents a **separate application/module** in the GIS system.
+Each dashboard represents a **separate application/module** in the platform.
 
 | Column | Purpose |
 |--------|---------|
@@ -83,7 +83,7 @@ Each dashboard represents a **separate application/module** in the GIS system.
 
 Examples: Crop Monitoring, Weather, VRA Maps, Indices, Agents, Crops
 
-**Why?** — The GIS platform has multiple dashboards. We need to control **which partner gets access to which dashboard** and define roles/permissions per dashboard.
+**Why?** — The agriculture monitoring platform has multiple dashboards. We need to control **which partner gets access to which dashboard** and define roles/permissions per dashboard.
 
 ---
 
@@ -175,7 +175,7 @@ Sometimes a user needs one extra permission (or needs one taken away) without ch
 
 ### `partners` — The Companies / Organizations
 
-Partners are the **client companies** using the GIS platform. Think of it as **multi-tenancy** — each company is a tenant.
+Partners are the **client companies** using the agriculture monitoring platform. Think of it as **multi-tenancy** — each company is a tenant.
 
 | Column | Purpose |
 |--------|---------|
@@ -224,7 +224,7 @@ Agents are **people on the ground** — field workers, extension officers, etc.
 | `user_id` | Optionally linked to a web user account |
 | `partner_id` | Which company they work for |
 
-**Why?** — GIS systems often have field agents collecting data. This table tracks them, their location, and links them to both a partner and optionally a web user account.
+**Why?** — platforms often have field agents collecting data. This table tracks them, their location, and links them to both a partner and optionally a web user account.
 
 ---
 
@@ -323,7 +323,7 @@ These two tables store results from automated E2E (end-to-end) testing:
 
 ## Summary
 
-This is a **Role-Based Access Control (RBAC)** system with **multi-tenant partner management**, **field agent tracking**, and **comprehensive audit logging** — all standard patterns for enterprise GIS platforms.
+This is a **Role-Based Access Control (RBAC)** system with **multi-tenant partner management**, **field agent tracking**, and **comprehensive audit logging** — all standard patterns for enterprise agriculture monitoring platforms.
 
 ---
 ---

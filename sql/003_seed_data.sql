@@ -10,7 +10,7 @@ BEGIN;
 
 INSERT INTO dashboards (code, name, description) VALUES
     ('crop_monitoring',   'Crop Monitoring Portal',     'Core product - partner-based remote farm health monitoring'),
-    ('insights',          'Insights Dashboard',          'Central GIS layer repository with cross-dashboard analytics'),
+    ('insights',          'Insights Dashboard',          'Central layer repository with cross-dashboard analytics'),
     ('cane_monitoring',   'Cane Monitoring Dashboard',   'Sugar mill operations, harvest tracking, farmer management'),
     ('admin',             'Admin Dashboard',             'Master control panel for all dashboards, users, and data'),
     ('field_survey',      'Field Survey Dashboard',      'Agent management, QA, payroll, data pipeline'),
@@ -87,7 +87,7 @@ ON CONFLICT (dashboard_id, code) DO NOTHING;
 
 -- Insights permissions
 INSERT INTO permissions (dashboard_id, code, name, module, description) VALUES
-    ((SELECT dashboard_id FROM dashboards WHERE code = 'insights'), 'layers.view',          'View Layers',            'layer_management', 'View GIS layers'),
+    ((SELECT dashboard_id FROM dashboards WHERE code = 'insights'), 'layers.view',          'View Layers',            'layer_management', 'View map layers'),
     ((SELECT dashboard_id FROM dashboards WHERE code = 'insights'), 'layers.manage',        'Manage Layers',          'layer_management', 'Publish/unpublish layers'),
     ((SELECT dashboard_id FROM dashboards WHERE code = 'insights'), 'classification.view',  'View Classification',    'analytics',        'View ML classification results'),
     ((SELECT dashboard_id FROM dashboards WHERE code = 'insights'), 'benchmarking.view',    'View Benchmarking',      'analytics',        'View farm vs region comparison'),

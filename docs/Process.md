@@ -25,7 +25,7 @@ The Agriculture Monitoring Platform consists of **6 interconnected dashboards** 
 | # | Dashboard | Purpose |
 |---|-----------|---------|
 | 1 | **Crop Monitoring Portal** | Partner-based remote farm health monitoring (NDVI, anomalies, advisory) |
-| 2 | **Insights Dashboard** | Central GIS layer repository with cross-dashboard analytics |
+| 2 | **Insights Dashboard** | Central layer repository with cross-dashboard analytics |
 | 3 | **Cane Monitoring Dashboard** | Sugar mill operations, harvest tracking, farmer management |
 | 4 | **Admin Dashboard** | Master control panel for all dashboards, users, and data |
 | 5 | **Field Survey Dashboard** | Agent management, QA, payroll, survey data pipeline |
@@ -52,7 +52,7 @@ This system provides **centralized authentication** (JWT-based) and **multi-tena
 |-----------|-----------|
 | Framework | NestJS 11.x |
 | ORM | TypeORM 0.3.28 |
-| Database | PostgreSQL (GIS_v2) |
+| Database | PostgreSQL (centralized_auth) |
 | Auth | JWT (access + refresh tokens) |
 | Password Hashing | bcrypt |
 | Passport Strategy | passport-jwt |
@@ -810,7 +810,7 @@ Full permissions: `surveys.submit`, `boundaries.mark`, `photos.upload`, `tasks.v
 
 - This schema is designed for a **fresh database** — no legacy table dependencies
 - All `partner_id` columns use proper `UUID` type with FK constraints
-- The `partners` table is clean — no auth fields mixed in (unlike the old GIS_v2 `partners` which had `username`/`password`/`role` on it)
+- The `partners` table is clean — no auth fields mixed in (unlike the old system's `partners` which had `username`/`password`/`role` on it)
 - Passwords are always bcrypt-hashed — no plaintext storage
 
 ---
@@ -845,7 +845,7 @@ DB_HOST=192.168.12.148
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=***
-DB_NAME=GIS_v2
+DB_NAME=centralized_auth
 
 # JWT
 JWT_SECRET=<your-secret-key>
