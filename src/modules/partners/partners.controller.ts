@@ -18,7 +18,7 @@ import { PartnersService } from './partners.service';
 import {
   CreatePartnerDto,
   UpdatePartnerDto,
-  ToggleDashboardAccessDto,
+  SetAllowedDashboardsDto,
 } from './dto/create-partner.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/jwt-payload.interface';
@@ -76,28 +76,19 @@ export class PartnersController {
     return this.partnersService.update(partnerId, dto, user.userId);
   }
 
-  @Post(':partnerId/dashboards')
-  @ApiOperation({ summary: 'Toggle dashboard access for partner' })
-  @ResponseMessage('Dashboard access updated')
-  async toggleDashboardAccess(
+  @Patch(':partnerId/dashboards')
+  @ApiOperation({ summary: 'Set allowed dashboards for partner' })
+  @ResponseMessage('Allowed dashboards updated')
+  async setAllowedDashboards(
     @Param('partnerId') partnerId: string,
-    @Body() dto: ToggleDashboardAccessDto,
+    @Body() dto: SetAllowedDashboardsDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.partnersService.toggleDashboardAccess(
+    return this.partnersService.setAllowedDashboards(
       partnerId,
-      dto.dashboardCode,
-      dto.isEnabled,
+      dto.dashboards,
       user.userId,
-      dto.config,
     );
-  }
-
-  @Get(':partnerId/dashboards')
-  @ApiOperation({ summary: 'Get partner dashboard access' })
-  @ResponseMessage('Dashboard access retrieved')
-  async getDashboardAccess(@Param('partnerId') partnerId: string) {
-    return this.partnersService.getDashboardAccess(partnerId);
   }
 
   @Delete(':partnerId')

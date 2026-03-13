@@ -4,9 +4,9 @@
 
 | Metric | Old (GIS_v2) | New (GIS Auth) |
 |--------|-------------|----------------|
-| Auth tables | 5 (messy) | 14 (purpose-built) |
-| Permission model | 30 hardcoded booleans | Dynamic RBAC with 60+ granular permissions |
-| Dashboard awareness | Single `dashboard_access` varchar | 6 registered dashboards with scoped roles |
+| Auth tables | 5 (messy) | 10 (purpose-built) |
+| Permission model | 30 hardcoded booleans | JSONB on roles — flexible key-value pairs |
+| Dashboard awareness | Single `dashboard_access` varchar | `dashboard` varchar on roles + `allowed_dashboards` array on partners |
 | Password storage | Plaintext | bcrypt hashed |
 | Token management | Raw `refresh_token` on agent row | Hashed, rotatable, per-device, expirable |
 | Multi-tenancy | Partial (varchar FKs, no isolation) | Full (UUID FKs, partner-scoped everything) |
@@ -52,20 +52,21 @@ CREATE TABLE public.partners (
 
 ```sql
 CREATE TABLE partners (
-    partner_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name            VARCHAR(255) NOT NULL,
-    slug            VARCHAR(100) UNIQUE,
-    address         TEXT,
-    contact_no      VARCHAR(50),
-    email           VARCHAR(255),
-    logo_url        VARCHAR(500),
-    credits         BIGINT DEFAULT 0,
-    message_credits BIGINT DEFAULT 0,
-    settings        JSONB DEFAULT '{}',
-    is_active       BOOLEAN DEFAULT TRUE,
-    created_at      TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW(),
-    deleted_at      TIMESTAMPTZ
+    partner_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name                VARCHAR(255) NOT NULL,
+    slug                VARCHAR(100) UNIQUE,
+    address             TEXT,
+    contact_no          VARCHAR(50),
+    email               VARCHAR(255),
+    logo_url            VARCHAR(500),
+    credits             BIGINT DEFAULT 0,
+    message_credits     BIGINT DEFAULT 0,
+    settings            JSONB DEFAULT '{}',
+    allowed_dashboards  TEXT[] DEFAULT '{}',
+    is_active           BOOLEAN DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at          TIMESTAMPTZ
 );
 ```
 
@@ -74,6 +75,7 @@ CREATE TABLE partners (
 - `slug` for white-label URLs
 - `logo_url` for branding
 - `settings` JSONB for flexible partner config
+- `allowed_dashboards` TEXT array — controls which dashboards this partner can access (e.g. `{'crop_monitoring','insights'}`)
 - `is_active` flag for deactivation without deletion
 - Full timestamp tracking (`created_at`, `updated_at`, `deleted_at`)
 - Soft delete support
@@ -152,7 +154,7 @@ CREATE INDEX idx_users_username ON users(username) WHERE deleted_at IS NULL;
 
 ---
 
-### 3. Permissions
+### 3. Permissions / Roles
 
 #### OLD: `partner_login_permissions`
 
@@ -208,74 +210,59 @@ CREATE TABLE public.partner_login_permissions (
 - Can't create custom roles — every user is manually configured
 - No audit of who granted what permission or when
 
-#### NEW: 5-table RBAC system
+#### NEW: Simplified RBAC — `roles` table with JSONB permissions
 
 ```sql
--- Dynamic permission registry
-CREATE TABLE permissions (
-    permission_id   UUID PRIMARY KEY,
-    dashboard_id    UUID REFERENCES dashboards(dashboard_id),
-    code            VARCHAR(100) NOT NULL,    -- 'farms.view'
-    name            VARCHAR(255) NOT NULL,
-    module          VARCHAR(100),             -- 'farm_management'
-    UNIQUE(dashboard_id, code)
-);
-
--- Named roles with bundled permissions
+-- Roles with dashboard scope and embedded permissions
 CREATE TABLE roles (
-    role_id         UUID PRIMARY KEY,
-    dashboard_id    UUID REFERENCES dashboards(dashboard_id),
-    code            VARCHAR(50) NOT NULL,     -- 'partner_admin'
+    role_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dashboard       VARCHAR(100) NOT NULL,
+    code            VARCHAR(50) NOT NULL,
     name            VARCHAR(255) NOT NULL,
+    description     TEXT,
+    permissions     JSONB DEFAULT '{}',
     is_system_role  BOOLEAN DEFAULT TRUE,
-    UNIQUE(dashboard_id, code)
+    UNIQUE(dashboard, code)
 );
 
--- Role-to-permission mapping (M:N)
-CREATE TABLE role_permissions (
-    role_id         UUID REFERENCES roles(role_id),
-    permission_id   UUID REFERENCES permissions(permission_id),
-    PRIMARY KEY (role_id, permission_id)
-);
-
--- User-to-role assignment
+-- User-to-role assignment with audit trail
 CREATE TABLE user_roles (
-    user_id     UUID REFERENCES users(user_id),
-    role_id     UUID REFERENCES roles(role_id),
-    granted_by  UUID REFERENCES users(user_id),
-    granted_at  TIMESTAMPTZ DEFAULT NOW(),
-    revoked_at  TIMESTAMPTZ,
-    UNIQUE(user_id, role_id)
-);
-
--- Direct overrides (grant or deny)
-CREATE TABLE user_permissions (
-    user_id         UUID REFERENCES users(user_id),
-    permission_id   UUID REFERENCES permissions(permission_id),
-    is_granted      BOOLEAN NOT NULL,     -- true=grant, false=deny
+    user_role_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    role_id         UUID NOT NULL REFERENCES roles(role_id) ON DELETE CASCADE,
     granted_by      UUID REFERENCES users(user_id),
-    UNIQUE(user_id, permission_id)
+    granted_at      TIMESTAMPTZ DEFAULT NOW(),
+    revoked_at      TIMESTAMPTZ,
+    UNIQUE(user_id, role_id)
 );
 ```
 
 **Improvements:**
-- **Dynamic** — add new permissions with INSERT, not ALTER TABLE
-- **Dashboard-scoped** — each permission belongs to a specific dashboard
-- **Module grouping** — permissions organized by module (`farm_management`, `analytics`, etc.)
-- **Role-based** — assign a role and the user gets all its permissions automatically
+- **Just 2 tables** instead of the old 1 bloated boolean table (or the previously planned 5-table RBAC)
+- **Dashboard-scoped roles** — each role belongs to a specific dashboard via `dashboard` varchar
+- **JSONB permissions** — flexible key-value pairs per role, no schema changes needed to add new permissions
+- **Named roles** — `system_admin`, `partner_admin`, `general_user` etc. instead of manual boolean toggles
 - **Per-dashboard roles** — a user can be `partner_admin` on Crop Monitoring but `partner_user` on Insights
-- **Direct overrides** — grant or deny specific permissions beyond the role (without creating a custom role)
+- **One role per dashboard per user** — enforced by application logic
 - **Audit trail** — `granted_by`, `granted_at`, `revoked_at` on every assignment
 - **Soft revoke** — revoke a role without deleting the history
-- **60+ permissions** seeded across 6 dashboards vs 30 hardcoded booleans
+- **20 roles** seeded across 6 dashboards vs 30 hardcoded booleans
 
-#### Side-by-Side: Adding a New Feature Permission
+#### Side-by-Side: Adding a New Permission
 
 | Step | Old Way | New Way |
 |------|---------|---------|
-| 1 | `ALTER TABLE partner_login_permissions ADD COLUMN new_feature bool DEFAULT false;` | `INSERT INTO permissions (dashboard_id, code, name, module) VALUES (...);` |
-| 2 | Deploy code that reads the new column | Deploy code that checks `@Permissions('new_feature.view')` |
-| 3 | Manually UPDATE each user's permission row | Assign to a role: `INSERT INTO role_permissions ...` — all users with that role get it instantly |
+| 1 | `ALTER TABLE partner_login_permissions ADD COLUMN new_feature bool DEFAULT false;` | Update the role's `permissions` JSONB: `UPDATE roles SET permissions = permissions \|\| '{"new_feature": true}'` |
+| 2 | Deploy code that reads the new column | Deploy code that checks the JSONB key |
+| 3 | Manually UPDATE each user's permission row | All users with that role get the permission automatically |
+
+#### Side-by-Side: Adding a New Dashboard
+
+| Step | Old Way | New Way |
+|------|---------|---------|
+| 1 | Add a new boolean column to `partner_login_permissions` | `INSERT INTO roles (dashboard, code, name, ...) VALUES ('new_dashboard', ...)` |
+| 2 | Add a new `_role` column on `partner_login` for the dashboard | Add `'new_dashboard'` to the partner's `allowed_dashboards` array |
+| 3 | Deploy code that reads both new columns | Assign user a role with `dashboard = 'new_dashboard'` — done |
 
 ---
 
@@ -373,36 +360,30 @@ insights_role text NULL         -- hardcoded column per dashboard
 - No way to control which dashboards a partner organization can access
 - No way to enable/disable features per partner per dashboard
 
-#### NEW: Two dedicated tables
+#### NEW: `allowed_dashboards` on partners + `dashboard` on roles
 
 ```sql
--- Which dashboards a partner can access
-CREATE TABLE partner_dashboards (
-    partner_id      UUID REFERENCES partners(partner_id),
-    dashboard_id    UUID REFERENCES dashboards(dashboard_id),
-    is_enabled      BOOLEAN DEFAULT TRUE,
-    enabled_at      TIMESTAMPTZ DEFAULT NOW(),
-    enabled_by      UUID REFERENCES users(user_id),
-    config          JSONB DEFAULT '{}',
-    PRIMARY KEY (partner_id, dashboard_id)
+-- Partners table has an array of allowed dashboard codes
+CREATE TABLE partners (
+    ...
+    allowed_dashboards  TEXT[] DEFAULT '{}',   -- e.g. {'crop_monitoring','insights'}
+    ...
 );
 
--- Feature-level toggles per partner
-CREATE TABLE partner_feature_toggles (
-    partner_id      UUID REFERENCES partners(partner_id),
-    permission_id   UUID REFERENCES permissions(permission_id),
-    is_enabled      BOOLEAN DEFAULT TRUE,
-    PRIMARY KEY (partner_id, permission_id)
+-- Roles are scoped by dashboard
+CREATE TABLE roles (
+    ...
+    dashboard       VARCHAR(100) NOT NULL,     -- 'crop_monitoring', 'insights', etc.
+    ...
 );
 ```
 
 **Improvements:**
-- **Explicit dashboard registry** — 6 dashboards as rows, not columns
-- Per-partner dashboard access with `is_enabled` toggle
-- `config` JSONB for dashboard-specific partner settings
-- `enabled_by` audit trail — who enabled this dashboard for this partner
-- **Feature toggles** — disable specific features for a partner even if their users' roles include them
-- Adding a 7th dashboard = `INSERT INTO dashboards` — no schema changes
+- **Simple and explicit** — partner's `allowed_dashboards` array controls which dashboards the organization can use
+- **Role-level scoping** — each role is tied to a specific dashboard, so a user gets dashboard-specific access through role assignment
+- **Easy to manage** — adding a dashboard to a partner is a simple array update: `UPDATE partners SET allowed_dashboards = array_append(allowed_dashboards, 'new_dashboard')`
+- **No extra tables** — no `partner_dashboards` junction table, no `partner_feature_toggles` table
+- **Guard enforcement** — the RolesGuard checks the user's roles and partner's `allowed_dashboards` at runtime
 
 ---
 
@@ -518,14 +499,11 @@ CREATE INDEX idx_audit_logs_action ON audit_logs(action);
 
 | New Table | Purpose | Why it didn't exist before |
 |-----------|---------|---------------------------|
-| `dashboards` | Registry of 6 dashboards | Old system had no concept of dashboards as entities |
-| `roles` | Named permission bundles per dashboard | Old system used flat varchar `permission` field |
-| `role_permissions` | M:N role-to-permission mapping | Old system had no roles at all |
-| `user_roles` | User-to-role assignment with audit | Old system had `permission` as a column on `partner_login` |
-| `user_permissions` | Direct grant/deny overrides | Old system had no override mechanism |
-| `partner_dashboards` | Which dashboards a partner can access | Old system had a single `dashboard_access` varchar |
-| `partner_feature_toggles` | Feature-level control per partner | Old system had no feature toggle support |
+| `roles` | Named roles per dashboard with JSONB permissions | Old system used flat varchar `permission` field + boolean table |
+| `user_roles` | User-to-role assignment with audit trail | Old system had `permission` as a column on `partner_login` |
 | `api_keys` | Third-party API access | Old system had no API key management |
+| `test_report_runs` | E2E test run summaries | Old system had no automated testing |
+| `test_report_results` | Individual E2E test results | Old system had no automated testing |
 
 ---
 
@@ -545,16 +523,12 @@ OLD: Adding "Carbon Tracking" feature to Insights dashboard
 
 NEW: Adding "Carbon Tracking" feature to Insights dashboard
 
-  1. INSERT INTO permissions (dashboard_id, code, name, module)
-     VALUES ((SELECT dashboard_id FROM dashboards WHERE code = 'insights'),
-             'carbon.track', 'Track Carbon', 'analytics', 'Track carbon footprint');
-  2. INSERT INTO role_permissions (role_id, permission_id)  -- assign to analyst role
-     SELECT r.role_id, p.permission_id
-     FROM roles r JOIN permissions p ON ...
-     WHERE r.code = 'analyst_user';
-  3. Deploy new code with @Permissions('carbon.track')
+  1. UPDATE roles SET permissions = permissions || '{"carbon_tracking": true}'
+     WHERE dashboard = 'insights' AND code = 'analyst_user';
+  2. Deploy new code that checks the JSONB key in the role's permissions
+  3. Done — all users with the analyst_user role on Insights get it instantly
 
-  Schema never changes. All done with INSERT.
+  Schema never changes. All done with UPDATE on JSONB.
 ```
 
 ---
@@ -563,13 +537,14 @@ NEW: Adding "Carbon Tracking" feature to Insights dashboard
 
 | Aspect | Old | New |
 |--------|-----|-----|
-| Add a permission | ALTER TABLE + deploy | INSERT row |
-| Add a dashboard | Add column to partner_login | INSERT row |
+| Add a permission | ALTER TABLE + deploy | Update role's JSONB `permissions` |
+| Add a dashboard | Add column to partner_login | INSERT roles + update partner's `allowed_dashboards` array |
 | Give user access to 3 dashboards | Set 3 separate varchar/bool columns | Assign 3 roles (one per dashboard) |
-| Remove one feature from a partner | Manual UPDATE on permission booleans | Toggle one row in partner_feature_toggles |
-| Know who granted a permission | Impossible | `granted_by` + `granted_at` on user_roles |
-| Revoke access and keep history | DELETE the row | Set `revoked_at` timestamp |
-| Support a new client app | Add more boolean columns | Register new dashboard + roles + permissions |
+| Remove a feature from a role | Manual UPDATE on permission booleans | Remove key from role's `permissions` JSONB |
+| Restrict a partner to certain dashboards | Not possible | Update `allowed_dashboards` array on partner |
+| Know who granted a role | Impossible | `granted_by` + `granted_at` on user_roles |
+| Revoke access and keep history | DELETE the row | Set `revoked_at` timestamp on user_roles |
+| Support a new client app | Add more boolean columns | INSERT new roles with `dashboard = 'new_app'` |
 | Password security | Plaintext | bcrypt with configurable rounds |
 | Token security | Raw text in DB | bcrypt hashed, rotated, expirable |
 | Deactivate without deleting | Not possible (only `deleted_at` on partner_login) | `is_active` flag + soft delete on users and partners |

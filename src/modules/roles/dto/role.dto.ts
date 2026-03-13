@@ -3,7 +3,7 @@ import {
   IsString,
   IsOptional,
   IsUUID,
-  IsArray,
+  IsObject,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -11,7 +11,7 @@ export class CreateRoleDto {
   @ApiProperty({ example: 'crop_monitoring' })
   @IsString()
   @IsNotEmpty()
-  dashboardCode: string;
+  dashboard: string;
 
   @ApiProperty({ example: 'field_manager' })
   @IsString()
@@ -27,6 +27,11 @@ export class CreateRoleDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiPropertyOptional({ example: {} })
+  @IsObject()
+  @IsOptional()
+  permissions?: Record<string, any>;
 }
 
 export class AssignRoleDto {
@@ -49,9 +54,8 @@ export class RevokeRoleDto {
   roleId: string;
 }
 
-export class SetRolePermissionsDto {
-  @ApiProperty({ type: [String] })
-  @IsArray()
-  @IsUUID('4', { each: true })
-  permissionIds: string[];
+export class UpdateRolePermissionsDto {
+  @ApiProperty({ example: { canView: true, canEdit: false } })
+  @IsObject()
+  permissions: Record<string, any>;
 }

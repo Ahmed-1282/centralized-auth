@@ -8,13 +8,12 @@
 4. [Entity Relationship Diagram](#4-entity-relationship-diagram)
 5. [Authentication Flow](#5-authentication-flow)
 6. [Authorization (Guards) Flow](#6-authorization-guards-flow)
-7. [Permission Resolution Logic](#7-permission-resolution-logic)
-8. [Module Architecture](#8-module-architecture)
-9. [API Endpoints](#9-api-endpoints)
-10. [Dashboards, Roles & Permissions Matrix](#10-dashboards-roles--permissions-matrix)
-11. [SQL Migration & Seed Strategy](#11-sql-migration--seed-strategy)
-12. [Key Design Decisions](#12-key-design-decisions)
-13. [Setup & Deployment](#13-setup--deployment)
+7. [Module Architecture](#7-module-architecture)
+8. [API Endpoints](#8-api-endpoints)
+9. [Dashboards & Roles](#9-dashboards--roles)
+10. [SQL Setup Strategy](#10-sql-setup-strategy)
+11. [Key Design Decisions](#11-key-design-decisions)
+12. [Setup & Deployment](#12-setup--deployment)
 
 ---
 
@@ -31,15 +30,14 @@ The Agriculture Monitoring Platform consists of **6 interconnected dashboards** 
 | 5 | **Field Survey Dashboard** | Agent management, QA, payroll, survey data pipeline |
 | 6 | **Field Survey App** | Mobile data collection - surveys, tasks, offline sync |
 
-This system provides **centralized authentication** (JWT-based) and **multi-tenant, dashboard-scoped RBAC** (Role-Based Access Control) across all 6 dashboards.
+This system provides **centralized authentication** (JWT-based) and **multi-tenant RBAC** (Role-Based Access Control) across all 6 dashboards.
 
 ### Core Concepts
 
 - **Partner** = An organization/company (e.g., an agricultural company). Partners have users and field agents.
 - **User** = A person who logs into the platform. Belongs to a partner (or is a system user with no partner).
 - **Agent** = A field agent who collects data on the ground. Belongs to a partner, optionally linked to a user account.
-- **Role** = A named set of permissions, scoped to a specific dashboard. A user can hold different roles on different dashboards.
-- **Permission** = A granular feature-level action (e.g., `farms.view`, `anomalies.manage`), scoped to a dashboard.
+- **Role** = A named access level scoped to a specific dashboard, with permissions stored as JSONB. A user can hold one role per dashboard.
 - **System User** = Internal BKK staff / super admins with no partner. They bypass partner-level restrictions.
 
 ---
@@ -52,7 +50,7 @@ This system provides **centralized authentication** (JWT-based) and **multi-tena
 |-----------|-----------|
 | Framework | NestJS 11.x |
 | ORM | TypeORM 0.3.28 |
-| Database | PostgreSQL (GIS_v2) |
+| Database | PostgreSQL |
 | Auth | JWT (access + refresh tokens) |
 | Password Hashing | bcrypt |
 | Passport Strategy | passport-jwt |
@@ -69,28 +67,19 @@ src/
 │   │   ├── response-message.decorator.ts    # @ResponseMessage('...')
 │   │   ├── public.decorator.ts              # @Public() - skip JWT for public routes
 │   │   ├── roles.decorator.ts               # @Roles('admin', 'partner_admin')
-│   │   ├── permissions.decorator.ts         # @Permissions('farms.view')
-│   │   ├── dashboard.decorator.ts           # @Dashboard('crop_monitoring')
 │   │   └── current-user.decorator.ts        # @CurrentUser() param decorator
 │   ├── guards/
 │   │   ├── jwt-auth.guard.ts                # Global JWT validation
-│   │   ├── roles.guard.ts                   # Role checking per dashboard
-│   │   ├── permissions.guard.ts             # Permission checking with resolution
-│   │   └── dashboard.guard.ts               # Partner dashboard access check
+│   │   └── roles.guard.ts                   # Role checking
 │   ├── filters/                             # Exception filters
 │   ├── interceptors/                        # Response transform interceptor
 │   └── interfaces/
 │       └── jwt-payload.interface.ts         # JwtPayload, AuthenticatedUser classes
 ├── entities/
 │   ├── partner.entity.ts
-│   ├── dashboard.entity.ts
 │   ├── role.entity.ts
-│   ├── permission.entity.ts
 │   ├── user.entity.ts
 │   ├── user-role.entity.ts
-│   ├── user-permission.entity.ts
-│   ├── partner-dashboard.entity.ts
-│   ├── partner-feature-toggle.entity.ts
 │   ├── agent.entity.ts
 │   ├── refresh-token.entity.ts
 │   ├── api-key.entity.ts
@@ -101,62 +90,56 @@ src/
 ├── modules/
 │   ├── auth/                                # Login, refresh, logout, /me
 │   ├── users/                               # User CRUD
-│   ├── partners/                            # Partner CRUD + dashboard access
+│   ├── partners/                            # Partner CRUD
 │   ├── roles/                               # Role management + user assignment
-│   ├── permissions/                         # Permission management + toggles
 │   ├── agents/                              # Agent CRUD
 │   ├── api-keys/                            # API key provisioning
 │   ├── audit/                               # Audit logging service (global)
 │   └── test-reports/                        # E2E test report storage & HTML views
 └── sql/
-    ├── 001_auth_schema.sql                  # CREATE TABLE (16 tables)
-    ├── 002_migrate_existing_data.sql        # Legacy data migration
-    └── 003_seed_data.sql                    # Dashboards, roles, permissions seed
+    ├── 001_auth_schema.sql                  # CREATE TABLE (10 tables)
+    └── 003_seed_data.sql                    # Roles seed data
 ```
 
 ---
 
 ## 3. Database Schema
 
-### 16 Tables Overview
+### 10 Tables Overview
 
 ```
-┌──────────────────────┐     ┌──────────────────┐     ┌──────────────────────┐
-│      partners        │     │    dashboards     │     │     audit_logs       │
-│──────────────────────│     │──────────────────│     │──────────────────────│
-│ partner_id (PK)      │     │ dashboard_id (PK)│     │ log_id (PK)          │
-│ name                 │     │ code (UNIQUE)    │     │ user_id (FK)         │
-│ slug (UNIQUE)        │     │ name             │     │ action               │
-│ address              │     │ description      │     │ resource_type        │
-│ contact_no           │     │ is_active        │     │ resource_id          │
-│ email                │     └──────────────────┘     │ details (JSONB)      │
-│ logo_url             │                               │ ip_address           │
-│ credits              │                               │ user_agent           │
-│ message_credits      │                               │ created_at           │
-│ settings (JSONB)     │                               └──────────────────────┘
+┌──────────────────────┐                         ┌──────────────────────┐
+│      partners        │                         │     audit_logs       │
+│──────────────────────│                         │──────────────────────│
+│ partner_id (PK)      │                         │ log_id (PK)          │
+│ name                 │                         │ user_id (FK)         │
+│ slug (UNIQUE)        │                         │ action               │
+│ address              │                         │ resource_type        │
+│ contact_no           │                         │ resource_id          │
+│ email                │                         │ details (JSONB)      │
+│ logo_url             │                         │ ip_address           │
+│ credits              │                         │ user_agent           │
+│ message_credits      │                         │ created_at           │
+│ settings (JSONB)     │                         └──────────────────────┘
+│ allowed_dashboards   │
+│   (TEXT[])           │
 │ is_active            │
 │ created_at           │
 │ updated_at           │
 │ deleted_at           │
 └──────────────────────┘
 
-┌──────────────────────┐     ┌──────────────────────┐
-│       roles          │     │     permissions      │
-│──────────────────────│     │──────────────────────│
-│ role_id (PK)         │     │ permission_id (PK)   │
-│ dashboard_id (FK)    │     │ dashboard_id (FK)    │
-│ code                 │     │ code                 │
-│ name                 │     │ name                 │
-│ description          │     │ description          │
-│ is_system_role       │     │ module               │
-└──────────────────────┘     └──────────────────────┘
-         │                              │
-         │    ┌──────────────────────┐  │
-         └───>│  role_permissions    │<─┘
-              │──────────────────────│
-              │ role_id (PK, FK)     │
-              │ permission_id (PK,FK)│
-              └──────────────────────┘
+┌──────────────────────┐
+│       roles          │
+│──────────────────────│
+│ role_id (PK)         │
+│ dashboard (VARCHAR)  │
+│ code                 │
+│ name                 │
+│ description          │
+│ permissions (JSONB)  │
+│ is_system_role       │
+└──────────────────────┘
 
 ┌──────────────────────┐
 │       users          │
@@ -177,18 +160,18 @@ src/
 │ deleted_at           │
 └──────────────────────┘
 
-┌──────────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
-│     user_roles       │     │   user_permissions   │     │   refresh_tokens     │
-│──────────────────────│     │──────────────────────│     │──────────────────────│
-│ user_role_id (PK)    │     │ user_permission_id   │     │ token_id (PK)        │
-│ user_id (FK)         │     │   (PK)               │     │ user_id (FK)         │
-│ role_id (FK)         │     │ user_id (FK)         │     │ token_hash           │
-│ granted_by (FK)      │     │ permission_id (FK)   │     │ device_info (JSONB)  │
-│ granted_at           │     │ is_granted           │     │ ip_address           │
-│ revoked_at           │     │ granted_by (FK)      │     │ expires_at           │
-└──────────────────────┘     │ granted_at           │     │ revoked_at           │
-                              └──────────────────────┘     │ created_at           │
-                                                           └──────────────────────┘
+┌──────────────────────┐     ┌──────────────────────┐
+│     user_roles       │     │   refresh_tokens     │
+│──────────────────────│     │──────────────────────│
+│ user_role_id (PK)    │     │ token_id (PK)        │
+│ user_id (FK)         │     │ user_id (FK)         │
+│ role_id (FK)         │     │ token_hash           │
+│ granted_by (FK)      │     │ device_info (JSONB)  │
+│ granted_at           │     │ ip_address           │
+│ revoked_at           │     │ expires_at           │
+└──────────────────────┘     │ revoked_at           │
+                              │ created_at           │
+                              └──────────────────────┘
 
 ┌──────────────────────┐
 │       agents         │
@@ -203,17 +186,6 @@ src/
 │ created_at           │
 │ updated_at           │
 └──────────────────────┘
-
-┌──────────────────────────┐     ┌──────────────────────────────┐
-│    partner_dashboards    │     │   partner_feature_toggles    │
-│──────────────────────────│     │──────────────────────────────│
-│ partner_id (PK, FK)      │     │ partner_id (PK, FK)          │
-│ dashboard_id (PK, FK)    │     │ permission_id (PK, FK)       │
-│ is_enabled               │     │ is_enabled                   │
-│ enabled_at               │     └──────────────────────────────┘
-│ enabled_by (FK)          │
-│ config (JSONB)           │
-└──────────────────────────┘
 
 ┌──────────────────────┐
 │      api_keys        │
@@ -252,77 +224,50 @@ src/
 
 ### Table Purposes
 
-| Table | Columns | Purpose |
-|-------|---------|---------|
-| `partners` | 12 cols + timestamps + soft delete | Partner organizations with settings, credits, branding |
-| `dashboards` | 4 cols | Registry of the 6 dashboards |
-| `roles` | 6 cols | Named roles scoped to a dashboard (e.g., `partner_admin` on `crop_monitoring`) |
-| `permissions` | 6 cols | Granular feature permissions scoped to a dashboard (e.g., `farms.view`) |
-| `role_permissions` | 2 cols (composite PK) | M:N mapping of which permissions a role grants |
-| `users` | 11 cols + timestamps + soft delete | Central user accounts with bcrypt passwords, partner link |
-| `user_roles` | 6 cols | User-to-role assignment with `granted_by`, `granted_at`, `revoked_at` audit trail |
-| `user_permissions` | 6 cols | Direct permission overrides — grant or deny beyond the role |
-| `refresh_tokens` | 7 cols + created_at | Bcrypt-hashed refresh tokens with device info, IP, expiration, revocation |
-| `agents` | 7 cols + timestamps | Field agents with optional 1:1 user account link, JSONB home location |
-| `partner_dashboards` | 5 cols + composite PK | Which dashboards a partner can access, with config and audit |
-| `partner_feature_toggles` | 3 cols (composite PK) | Feature-level on/off per partner per permission |
-| `api_keys` | 11 cols + created_at | Third-party API access with hashed keys, scopes, rate limits |
-| `audit_logs` | 8 cols + created_at | Append-only action trail — user, action, resource, details, IP |
-| `test_report_runs` | 6 cols + created_at | E2E test run summaries — pass/fail counts, duration, JSONB module breakdown |
-| `test_report_results` | 12 cols | Individual test outcomes per run — endpoint, method, status, duration, error |
+| Table | Purpose |
+|-------|---------|
+| `partners` | Partner organizations with settings, credits, allowed_dashboards array |
+| `roles` | Named roles with dashboard scope and permissions JSONB |
+| `users` | Central user accounts with bcrypt passwords, partner link |
+| `user_roles` | User-to-role assignment with audit trail (granted_by, granted_at, revoked_at) |
+| `refresh_tokens` | Bcrypt-hashed refresh tokens with device info, IP, expiration, revocation |
+| `agents` | Field agents with optional 1:1 user link, JSONB home location |
+| `api_keys` | Third-party API access with hashed keys, scopes, rate limits |
+| `audit_logs` | Append-only action trail — user, action, resource, details, IP |
+| `test_report_runs` | E2E test run summaries |
+| `test_report_results` | Individual test outcomes per run |
 
 ---
 
 ## 4. Entity Relationship Diagram
 
 ```
-                    ┌────────────┐
-                    │ dashboards │
-                    └─────┬──────┘
-            ┌─────────────┼─────────────┐
-            v             v             v
-       ┌────────┐   ┌────────────┐  ┌────────────────────┐
-       │ roles  │   │permissions │  │ partner_dashboards  │
-       └───┬────┘   └─────┬─────┘  └────────┬───────────┘
-           │              │                  │
-           └──────┬───────┘                  │
-                  v                          │
-          ┌────────────────┐                 │
-          │role_permissions│                 │
-          └────────────────┘                 │
-                                             │
-    ┌──────────┐                    ┌────────────────┐
-    │  users   │────────────────────│  partners   │
-    └────┬─────┘                    └───────┬────────┘
-         │                                  │
-    ┌────┼─────────────┐                    │
-    v    v             v                    v
-┌──────────┐ ┌────────────────┐    ┌───────────────────────┐
-│user_roles│ │user_permissions│    │partner_feature_toggles│
-└──────────┘ └────────────────┘    └───────────────────────┘
-    │
-    v
-┌──────────────┐     ┌──────────┐     ┌───────────┐
-│refresh_tokens│     │  agents  │     │ api_keys  │
-└──────────────┘     └──────────┘     └───────────┘
-                         │
-                    (optional 1:1)
-                         │
-                    ┌────┘
-                    v
-                 ┌──────┐
-                 │users │
-                 └──────┘
+    ┌──────────┐
+    │ partners │
+    └────┬─────┘
+         │ has many
+    ┌────┼──────────────┐
+    v    v              v
+┌──────┐ ┌──────────┐ ┌──────────┐
+│users │ │  agents  │ │ api_keys │
+└──┬───┘ └──────────┘ └──────────┘
+   │
+   │ assigned via user_roles
+   v
+┌──────────┐
+│  roles   │  (dashboard varchar + permissions JSONB)
+└──────────┘
+
+users ──> refresh_tokens (1:N)
+users ──> audit_logs (1:N)
 ```
 
 **Key Relationships:**
 - `users.partner_id → partners.partner_id` (nullable - NULL for system users)
-- `roles.dashboard_id → dashboards.dashboard_id` (roles are scoped per dashboard)
-- `permissions.dashboard_id → dashboards.dashboard_id` (permissions are scoped per dashboard)
+- `roles.dashboard` is a varchar string (e.g., 'crop_monitoring') — no FK to a dashboards table
+- `roles.permissions` is JSONB — no separate permissions table
+- `partners.allowed_dashboards` is a TEXT array — no separate partner_dashboards table
 - `user_roles` links users to roles (with `granted_by`, `revoked_at` for audit trail)
-- `user_permissions` provides direct overrides (grant = true, deny = false)
-- `partner_dashboards` controls which dashboards a partner can access
-- `partner_feature_toggles` controls which individual features are enabled per partner
 - `agents.user_id → users.user_id` (optional 1:1 - some agents have no web login)
 
 ---
@@ -339,25 +284,25 @@ Client                              Server
   │                                    │  1. Find user by username (not deleted)
   │                                    │  2. Check user.isActive
   │                                    │  3. bcrypt.compare(password, passwordHash)
-  │                                    │  4. Load user_roles with role.dashboard info
+  │                                    │  4. Load user_roles with role info
   │                                    │  5. Build JWT payload with roles array
   │                                    │  6. Sign access token (15 min TTL)
   │                                    │  7. Generate random refresh token
-  │                                    │  8. Hash refresh token, store in DB with device/IP info
+  │                                    │  8. Hash refresh token, store in DB
   │                                    │  9. Update user.lastLoginAt
   │                                    │ 10. Log audit: 'user.login'
   │<── 200 ───────────────────────────│
   │    {                               │
   │      tokens: {                     │
   │        accessToken: "eyJ...",      │
-  │        refreshToken: "abc123..."   │
+  │        refreshToken: "gis_..."     │
   │      },                            │
   │      user: {                       │
   │        userId, username, email,    │
   │        fullName, isSystemUser,     │
   │        partnerId, partnerName,     │
   │        roles: [                    │
-  │          { dashboardCode, roleCode,│
+  │          { dashboard, roleCode,    │
   │            roleName }              │
   │        ]                           │
   │      }                             │
@@ -373,8 +318,8 @@ Client                              Server
   "partnerId": "660e8400-e29b-41d4-a716-446655440001",
   "isSystemUser": false,
   "roles": [
-    { "dashboardCode": "crop_monitoring", "roleCode": "partner_admin" },
-    { "dashboardCode": "insights", "roleCode": "partner_user" }
+    { "dashboard": "crop_monitoring", "roleCode": "partner_admin" },
+    { "dashboard": "insights", "roleCode": "partner_user" }
   ],
   "iat": 1709000000,
   "exp": 1709000900
@@ -387,13 +332,13 @@ Client                              Server
 Client                              Server
   │                                    │
   │─── POST /api/auth/refresh ────────>│
-  │    { refreshToken: "abc123..." }   │
+  │    { refreshToken: "gis_..." }    │
   │                                    │  1. Load all non-revoked tokens from DB
   │                                    │  2. bcrypt.compare each until match found
   │                                    │  3. Check not expired
   │                                    │  4. Revoke the matched token (set revokedAt)
   │                                    │  5. Verify user still active
-  │                                    │  6. Reload user roles (may have changed)
+  │                                    │  6. Reload user roles
   │                                    │  7. Generate new access + refresh token pair
   │                                    │  8. Hash & store new refresh token
   │<── 200 ───────────────────────────│
@@ -405,23 +350,6 @@ Client                              Server
 ```
 POST /api/auth/logout       → Revoke single refresh token (current device)
 POST /api/auth/logout-all   → Revoke ALL refresh tokens for user (all devices)
-```
-
-### Request Authentication
-
-```
-Client                              Server
-  │                                    │
-  │─── GET /api/farms ────────────────>│
-  │    Authorization: Bearer eyJ...    │
-  │                                    │  JwtAuthGuard:
-  │                                    │    1. Extract token from Authorization header
-  │                                    │    2. Verify JWT signature + expiration
-  │                                    │    3. Attach decoded payload as req.user
-  │                                    │
-  │                                    │  If route has @Public() → skip guard
-  │                                    │  If no token / expired → 401 Unauthorized
-  │<── data ──────────────────────────│
 ```
 
 ---
@@ -445,29 +373,8 @@ Request
 ┌──────────────────────────────────────────────┐
 │  2. RolesGuard (GLOBAL - APP_GUARD)          │
 │     - Checks @Roles('system_admin', ...)     │
-│     - Optionally scoped by @Dashboard()      │
 │     - System users bypass this check         │
 │     - No @Roles decorator → allow all        │
-│     - Failure → 403 Forbidden                │
-└──────────────┬───────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────┐
-│  3. DashboardGuard (per-route)               │
-│     - Checks @Dashboard('crop_monitoring')   │
-│     - Verifies partner_dashboards entry      │
-│     - System users bypass this check         │
-│     - No @Dashboard decorator → allow all    │
-│     - Failure → 403 Forbidden                │
-└──────────────┬───────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────┐
-│  4. PermissionsGuard (per-route)             │
-│     - Checks @Permissions('farms.view', ...) │
-│     - Full resolution (see Section 7)        │
-│     - System users bypass this check         │
-│     - No @Permissions decorator → allow all  │
 │     - Failure → 403 Forbidden                │
 └──────────────┬───────────────────────────────┘
                │
@@ -492,18 +399,6 @@ async getProfile() { ... }
 @Get('admin/stats')
 async getStats() { ... }
 
-// Requires role + dashboard scope
-@Dashboard('crop_monitoring')
-@Roles('partner_admin')
-@Get('farms')
-async getFarms() { ... }
-
-// Requires specific permission on a dashboard
-@Dashboard('crop_monitoring')
-@Permissions('farms.view')
-@Get('farms')
-async getFarms() { ... }
-
 // Extract current user from JWT
 @Get('profile')
 async getProfile(@CurrentUser() user: AuthenticatedUser) {
@@ -513,79 +408,7 @@ async getProfile(@CurrentUser() user: AuthenticatedUser) {
 
 ---
 
-## 7. Permission Resolution Logic
-
-When `@Permissions('farms.view', 'farms.manage')` is applied to a route:
-
-```
-Step 1: Get user's active roles
-        → SELECT * FROM user_roles WHERE user_id = ? AND revoked_at IS NULL
-
-Step 2: Collect permissions from roles (via role_permissions join)
-        → For each active role, gather all permission codes
-        → If @Dashboard specified, only include roles matching that dashboard
-
-        Result: Set<string> rolePermissions = { 'farms.view', 'indices.view', ... }
-
-Step 3: Get direct user permission overrides
-        → SELECT * FROM user_permissions WHERE user_id = ?
-
-        For each override:
-          - if is_granted = TRUE  → ADD to granted set
-          - if is_granted = FALSE → REMOVE from granted set
-
-        Result: Set<string> effectivePermissions
-
-Step 4: Filter by partner feature toggles (if user has a partner)
-        → SELECT * FROM partner_feature_toggles WHERE partner_id = ?
-        → If partner has ANY toggles defined:
-            only keep permissions where toggle.is_enabled = TRUE
-            (removes permissions the partner hasn't been granted)
-
-        Result: Set<string> finalPermissions
-
-Step 5: Check all required permissions are present
-        → requiredPermissions.every(p => finalPermissions.has(p))
-        → If any missing → 403 Forbidden
-```
-
-### Visual Formula
-
-```
-effective_permissions =
-    (permissions from user's active roles)
-    ∪ (direct grants where is_granted = true)
-    \ (direct denies where is_granted = false)
-    ∩ (partner feature toggles where is_enabled = true)    ← only if partner has toggles
-```
-
-### Example Scenario
-
-```
-User: john (partner: AgroCorp)
-  Active Roles:
-    - crop_monitoring / partner_admin → grants: farms.view, farms.manage, indices.view, ...
-    - insights / partner_user        → grants: layers.view, data.export
-
-  Direct Overrides:
-    - farms.export: is_granted = TRUE   (added - not in role but directly granted)
-    - indices.view: is_granted = FALSE  (removed - explicitly denied despite role)
-
-  Partner Feature Toggles (AgroCorp):
-    - farms.view: enabled
-    - farms.manage: enabled
-    - indices.view: enabled      ← but john has a direct deny, so still blocked
-    - farms.export: NOT in toggles... if partner has any toggles, this gets blocked
-
-  Final on crop_monitoring:
-    { farms.view, farms.manage }
-```
-
----
-
-## 8. Module Architecture
-
-### Module Dependency Graph
+## 7. Module Architecture
 
 ```
 AppModule
@@ -601,14 +424,11 @@ AppModule
   │     ├── UsersController: CRUD + changePassword
   │     └── UsersService
   ├── PartnersModule
-  │     ├── PartnersController: CRUD + toggleDashboardAccess
+  │     ├── PartnersController: CRUD
   │     └── PartnersService
   ├── RolesModule
-  │     ├── RolesController: CRUD + setPermissions + assign/revoke
+  │     ├── RolesController: CRUD + assign/revoke
   │     └── RolesService
-  ├── PermissionsModule
-  │     ├── PermissionsController: CRUD + user overrides + feature toggles
-  │     └── PermissionsService
   ├── AgentsModule
   │     ├── AgentsController: CRUD
   │     └── AgentsService
@@ -616,13 +436,11 @@ AppModule
   │     ├── ApiKeysController: create, list, revoke
   │     └── ApiKeysService
   └── TestReportsModule
-        ├── TestReportsController: list, findOne, latest HTML, index HTML, run HTML, delete
+        ├── TestReportsController: list, findOne, latest HTML, index HTML, delete
         └── TestReportsService: DB queries + HTML report generation
 ```
 
 ### Global Providers (APP_GUARD)
-
-Registered in `AppModule.providers`:
 
 ```typescript
 providers: [
@@ -633,7 +451,7 @@ providers: [
 
 ---
 
-## 9. API Endpoints
+## 8. API Endpoints
 
 ### Auth (`/api/auth`)
 
@@ -662,10 +480,8 @@ providers: [
 |--------|----------|------|-------------|
 | POST | `/partners` | Bearer | Create a new partner |
 | GET | `/partners` | Bearer | List partners |
-| GET | `/partners/:partnerId` | Bearer | Get partner with dashboard access |
-| PATCH | `/partners/:partnerId` | Bearer | Update partner |
-| POST | `/partners/:partnerId/dashboards` | Bearer | Toggle dashboard access |
-| GET | `/partners/:partnerId/dashboards` | Bearer | Get partner's dashboard access |
+| GET | `/partners/:partnerId` | Bearer | Get partner details |
+| PATCH | `/partners/:partnerId` | Bearer | Update partner (including allowed_dashboards) |
 | DELETE | `/partners/:partnerId` | Bearer | Soft delete partner |
 
 ### Roles (`/api/roles`)
@@ -673,24 +489,12 @@ providers: [
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | POST | `/roles` | Bearer | Create a custom role |
-| GET | `/roles` | Bearer | List roles (filter: dashboardCode) |
-| GET | `/roles/:roleId` | Bearer | Get role with its permissions |
-| PATCH | `/roles/:roleId/permissions` | Bearer | Set permissions for a role |
+| GET | `/roles` | Bearer | List roles (filter: dashboard) |
+| GET | `/roles/:roleId` | Bearer | Get role details |
+| PATCH | `/roles/:roleId` | Bearer | Update role (including permissions JSONB) |
 | POST | `/roles/assign` | Bearer | Assign a role to a user |
 | POST | `/roles/revoke` | Bearer | Revoke a role from a user |
 | GET | `/roles/user/:userId` | Bearer | Get all roles for a user |
-
-### Permissions (`/api/permissions`)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/permissions` | Bearer | Create a permission |
-| GET | `/permissions` | Bearer | List permissions (filter: dashboardCode, module) |
-| POST | `/permissions/user` | Bearer | Set direct user permission (grant/deny) |
-| DELETE | `/permissions/user/:userId/:permissionId` | Bearer | Remove direct override |
-| GET | `/permissions/user/:userId` | Bearer | Get user's direct permissions |
-| POST | `/permissions/partner-toggle` | Bearer | Set partner feature toggle |
-| GET | `/permissions/partner-toggle/:partnerId` | Bearer | Get partner's feature toggles |
 
 ### Agents (`/api/agents`)
 
@@ -708,17 +512,17 @@ providers: [
 |--------|----------|------|-------------|
 | POST | `/api-keys` | Bearer | Create API key (returns raw key once) |
 | GET | `/api-keys` | Bearer | List API keys (filter: partnerId) |
-| POST | `/api-keys/:apiKeyId/revoke` | Bearer | Revoke an API key |
+| DELETE | `/api-keys/:apiKeyId` | Bearer | Revoke an API key |
 
 ### Test Reports (`/api/test-reports`)
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | `/test-reports` | Public | List all test report runs (JSON) |
-| GET | `/test-reports/latest/html` | Public | Latest test report as styled HTML page |
-| GET | `/test-reports/index` | Public | Index page listing all runs as HTML |
-| GET | `/test-reports/:runId` | Public | Get a specific run with all results (JSON) |
-| GET | `/test-reports/:runId/html` | Public | Specific test report as styled HTML page |
+| GET | `/test-reports` | Public | List all test report runs |
+| GET | `/test-reports/latest/html` | Public | Latest report as HTML |
+| GET | `/test-reports/index` | Public | Index page listing all runs |
+| GET | `/test-reports/:runId` | Public | Get a specific run with results |
+| GET | `/test-reports/:runId/html` | Public | Specific report as HTML |
 | DELETE | `/test-reports/:runId` | Bearer | Delete a test report run |
 
 ### Health (`/api`)
@@ -726,133 +530,106 @@ providers: [
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | `/` | Public | Health check |
-| GET | `/health` | Public | Health check |
+| GET | `/test` | Public | Health check |
 
 ---
 
-## 10. Dashboards, Roles & Permissions Matrix
+## 9. Dashboards & Roles
 
-### Crop Monitoring Portal
+Roles are seeded per dashboard. Permissions JSONB is currently empty `{}` — will be populated once business defines the key-value pairs.
 
-| Role | Permissions |
+### Crop Monitoring Portal — 5 roles
+| Role | Description |
 |------|-------------|
-| **system_admin** | ALL permissions |
-| **executive_user** | farms.view, indices.view, anomalies.view, weather.view, overview.view, reports.view, reports.export, disease_risk.view, yield.view |
-| **partner_admin** | ALL except overview.view |
-| **general_user** | farms.view, indices.view, anomalies.view, weather.view, reports.view, disease_risk.view, yield.view |
-| **agri_expert** | farms.view, indices.view, anomalies.view, anomalies.manage, advisory.view, advisory.create, disease_risk.view, weather.view |
+| **system_admin** | All partner data, complete management |
+| **executive_user** | Overview dashboard, aggregate stats |
+| **partner_admin** | Create accounts, manage agents, full access within partner |
+| **general_user** | Farm list, individual farm indices, no exec overview |
+| **agri_expert** | Cross-partner anomaly review, advisory |
 
-Full permissions list: `farms.view`, `farms.manage`, `farms.export`, `indices.view`, `anomalies.view`, `anomalies.manage`, `agents.view`, `agents.manage`, `advisory.view`, `advisory.create`, `reports.view`, `reports.export`, `weather.view`, `overview.view`, `disease_risk.view`, `yield.view`
-
-### Insights Dashboard
-
-| Role | Permissions |
+### Insights Dashboard — 4 roles
+| Role | Description |
 |------|-------------|
-| **system_admin** | ALL permissions |
-| **partner_user** | layers.view, classification.view, data.export |
-| **analyst_user** | layers.view, classification.view, benchmarking.view, carbon.view, trends.view, data.export |
-| **external_stakeholder** | layers.view, benchmarking.view |
+| **system_admin** | Access all layers, all regions |
+| **partner_user** | Scoped to enabled layers only |
+| **analyst_user** | Read-only cross-layer comparison |
+| **external_stakeholder** | Limited view for govt/insurer |
 
-Full permissions: `layers.view`, `layers.manage`, `classification.view`, `benchmarking.view`, `carbon.view`, `trends.view`, `data.export`
-
-### Cane Monitoring Dashboard
-
-| Role | Permissions |
+### Cane Monitoring Dashboard — 4 roles
+| Role | Description |
 |------|-------------|
-| **super_admin** | ALL permissions |
-| **mill_admin** | ALL permissions |
-| **unit_admin** | mills.view, harvest.view, harvest.manage, farmers.view, farmers.manage, classification.view, ratoon.view, yield.view |
-| **multi_mill_admin** | ALL permissions |
+| **super_admin** | All mills combined |
+| **mill_admin** | Mill-specific data |
+| **unit_admin** | Unit-specific data |
+| **multi_mill_admin** | 2+ mills combined |
 
-Full permissions: `mills.view`, `mills.manage`, `harvest.view`, `harvest.manage`, `farmers.view`, `farmers.manage`, `classification.view`, `ratoon.view`, `yield.view`
-
-### Admin Dashboard
-
-| Role | Permissions |
+### Admin Dashboard — 2 roles
+| Role | Description |
 |------|-------------|
-| **super_admin** | ALL permissions |
-| **executive** | All `*.view` + platform.analytics |
+| **super_admin** | Full platform control |
+| **executive** | Read-only overview and reporting |
 
-Full permissions: `partners.view`, `partners.manage`, `users.view`, `users.manage`, `roles.view`, `roles.manage`, `layers.manage`, `api_keys.view`, `api_keys.manage`, `billing.view`, `billing.manage`, `audit.view`, `white_label.manage`, `platform.analytics`
-
-### Field Survey Dashboard
-
-| Role | Permissions |
+### Field Survey Dashboard — 3 roles
+| Role | Description |
 |------|-------------|
-| **system_admin** | ALL permissions |
-| **qa_user** | surveys.view, surveys.qa, agents.view, performance.view |
-| **qa_supervisor** | surveys.view, surveys.qa, surveys.supervise, agents.view, payroll.view, data.export, performance.view |
+| **system_admin** | Add/remove agents, assign regions |
+| **qa_user** | Approve/reject, request re-visits |
+| **qa_supervisor** | Oversee multiple QA users |
 
-Full permissions: `agents.view`, `agents.manage`, `surveys.view`, `surveys.qa`, `surveys.supervise`, `payroll.view`, `payroll.manage`, `data.export`, `performance.view`
-
-### Field Survey App
-
-| Role | Permissions |
+### Field Survey App — 2 roles
+| Role | Description |
 |------|-------------|
-| **surveyor** | ALL permissions |
-| **field_executive** | ALL permissions |
+| **surveyor** | Field data collection, boundary marking |
+| **field_executive** | Supervisory field role with expanded access |
 
-Full permissions: `surveys.submit`, `boundaries.mark`, `photos.upload`, `tasks.view`, `tasks.execute`, `farmers.onboard`
+**Total: 20 roles across 6 dashboards**
 
 ---
 
-## 11. SQL Setup Strategy
+## 10. SQL Setup Strategy
 
 ### Execution Order (Fresh Database)
 
 ```
-1. sql/001_auth_schema.sql       ← Creates all 16 tables
-2. sql/003_seed_data.sql         ← Seeds dashboards, roles, permissions, role_permissions
-3. Create first admin user       ← Via SQL or the /api/auth endpoint after startup
+1. sql/001_auth_schema.sql       ← Creates all 10 tables
+2. sql/003_seed_data.sql         ← Seeds 20 roles across 6 dashboards
+3. Create first admin user       ← Via SQL or API after startup
 ```
-
-### Notes
-
-- This schema is designed for a **fresh database** — no legacy table dependencies
-- All `partner_id` columns use proper `UUID` type with FK constraints
-- The `partners` table is clean — no auth fields mixed in (unlike the old GIS_v2 `partners` which had `username`/`password`/`role` on it)
-- Passwords are always bcrypt-hashed — no plaintext storage
 
 ---
 
-## 12. Key Design Decisions
+## 11. Key Design Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Roles are per-dashboard | Yes | A user can be `partner_admin` on Crop Monitoring but only `partner_user` on Insights |
-| Permissions belong to a dashboard | Yes | `farms.view` is a crop_monitoring permission, `layers.view` is an insights permission |
-| Partner feature toggles | Separate table | Partners can be blocked from specific features even if their users' roles include them |
-| Agents optionally have users | `agents.user_id` nullable | Some agents only use phone-based auth on mobile, others need web login |
-| System users have no partner | `users.partner_id` nullable | BKK internal staff and agri-experts work cross-partner |
+| Roles are per-dashboard | `dashboard` varchar column | A user can be `partner_admin` on Crop Monitoring but `partner_user` on Insights |
+| Permissions as JSONB | On roles table | Simpler than separate permissions/role_permissions tables. Populated when business defines them |
+| Partner dashboard access | `allowed_dashboards` TEXT array on partners | Simpler than a separate partner_dashboards table |
+| No dashboards table | Dashboard is just a string | No need for a separate registry table |
+| Agents optionally have users | `agents.user_id` nullable | Some agents only use phone-based auth, others need web login |
+| System users have no partner | `users.partner_id` nullable | BKK internal staff work cross-partner |
 | Refresh tokens in DB | Hashed, revocable | Enables logout-everywhere, token rotation, device tracking |
 | `synchronize: false` | Manual SQL migrations | Always use explicit SQL for schema changes |
 | Soft deletes on users/partners | `deleted_at` column | Preserve audit trail, allow restoration |
-| Direct permission overrides | Grant + deny | Enables fine-grained exceptions without creating single-use roles |
-| Fresh `partners` table | Clean design | No auth fields mixed in, proper UUID PKs, JSONB settings |
-| Audit logs | Append-only | Every admin action (create, update, delete, assign, revoke) is tracked |
-| API keys hashed | Only prefix stored | Like GitHub tokens - the raw key is shown once at creation, never again |
-| Explicit `type` on nullable `@Column` | Always specify `type` when `nullable: true` | TypeScript's `emitDecoratorMetadata` emits `Object` for union types (`string \| null`), which PostgreSQL doesn't support. Always use e.g. `@Column({ type: 'uuid', nullable: true })` or `@Column({ type: 'varchar', length: 255, nullable: true })` |
+| Audit logs | Append-only | Every admin action is tracked |
+| API keys hashed | Only prefix stored | Raw key shown once at creation, never again |
 
 ---
 
-## 13. Setup & Deployment
+## 12. Setup & Deployment
 
 ### Environment Variables
 
 ```env
-# Database (existing)
-DB_HOST=192.168.12.148
+DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
-DB_PASSWORD=***
-DB_NAME=GIS_v2
-
-# JWT
+DB_PASS=1282
+DB_NAME=GIS_auth
+PORT=3001
 JWT_SECRET=<your-secret-key>
 JWT_ACCESS_TTL=900         # 15 minutes in seconds
 JWT_REFRESH_TTL=604800     # 7 days in seconds
-
-# Bcrypt
 BCRYPT_ROUNDS=12
 ```
 
@@ -871,14 +648,14 @@ BCRYPT_ROUNDS=12
    npm run start:prod
    ```
 
-4. **Verify:**
-   - Swagger docs: `http://<host>:3000/api/docs`
-   - Health check: `GET http://<host>:3000/api/health`
-   - Login: `POST http://<host>:3000/api/auth/login`
+3. **Verify:**
+   - Swagger docs: `http://<host>:3001/api/docs`
+   - Health check: `GET http://<host>:3001/api`
+   - Login: `POST http://<host>:3001/api/auth/login`
 
 ### Creating the First System Admin
 
-After migration, if no system admin exists:
+After setup, if no system admin exists:
 
 ```sql
 -- Create via SQL (password must be bcrypt-hashed)
@@ -889,9 +666,8 @@ VALUES ('superadmin', '$2b$12$<hashed_password>', 'Super Admin', TRUE, TRUE);
 INSERT INTO user_roles (user_id, role_id)
 SELECT u.user_id, r.role_id
 FROM users u, roles r
-JOIN dashboards d ON d.dashboard_id = r.dashboard_id
 WHERE u.username = 'superadmin'
-  AND d.code = 'admin'
+  AND r.dashboard = 'admin'
   AND r.code = 'super_admin';
 ```
 

@@ -12,7 +12,6 @@ import {
 } from 'typeorm';
 import { Partner } from './partner.entity';
 import { UserRole } from './user-role.entity';
-import { UserPermission } from './user-permission.entity';
 import { RefreshToken } from './refresh-token.entity';
 import { Agent } from './agent.entity';
 
@@ -66,9 +65,6 @@ export class User {
 
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   userRoles: UserRole[];
-
-  @OneToMany(() => UserPermission, (up) => up.user)
-  userPermissions: UserPermission[];
 
   @OneToMany(() => RefreshToken, (rt) => rt.user)
   refreshTokens: RefreshToken[];

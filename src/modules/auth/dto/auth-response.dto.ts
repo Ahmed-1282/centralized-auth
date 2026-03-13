@@ -31,7 +31,7 @@ export class UserProfileDto {
   partnerName: string | null;
 
   @ApiProperty({ type: [Object] })
-  roles: { dashboardCode: string; roleCode: string; roleName: string }[];
+  roles: { dashboard: string; roleCode: string; roleName: string }[];
 }
 
 export class LoginResponseDto {

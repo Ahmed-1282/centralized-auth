@@ -61,11 +61,11 @@ export class AuthService {
     // Load user roles with dashboard info
     const userRoles = await this.userRoleRepo.find({
       where: { userId: user.userId, revokedAt: IsNull() },
-      relations: ['role', 'role.dashboard'],
+      relations: ['role'],
     });
 
     const roles = userRoles.map((ur) => ({
-      dashboardCode: ur.role.dashboard.code,
+      dashboard: ur.role.dashboard,
       roleCode: ur.role.code,
       roleName: ur.role.name,
     }));
@@ -161,11 +161,11 @@ export class AuthService {
     // Load roles
     const userRoles = await this.userRoleRepo.find({
       where: { userId: user.userId, revokedAt: IsNull() },
-      relations: ['role', 'role.dashboard'],
+      relations: ['role'],
     });
 
     const roles = userRoles.map((ur) => ({
-      dashboardCode: ur.role.dashboard.code,
+      dashboard: ur.role.dashboard,
       roleCode: ur.role.code,
       roleName: ur.role.name,
     }));
@@ -240,7 +240,7 @@ export class AuthService {
 
     const userRoles = await this.userRoleRepo.find({
       where: { userId, revokedAt: IsNull() },
-      relations: ['role', 'role.dashboard'],
+      relations: ['role'],
     });
 
     return {
@@ -252,7 +252,7 @@ export class AuthService {
       partnerId: user.partnerId,
       partnerName: user.partner?.name || null,
       roles: userRoles.map((ur) => ({
-        dashboardCode: ur.role.dashboard.code,
+        dashboard: ur.role.dashboard,
         roleCode: ur.role.code,
         roleName: ur.role.name,
       })),
@@ -261,7 +261,7 @@ export class AuthService {
 
   private generateTokens(
     user: User,
-    roles: { dashboardCode: string; roleCode: string }[],
+    roles: { dashboard: string; roleCode: string }[],
   ): AuthTokensDto {
     const payload: JwtPayload = {
       sub: user.userId,
@@ -269,7 +269,7 @@ export class AuthService {
       partnerId: user.partnerId || null,
       isSystemUser: user.isSystemUser,
       roles: roles.map((r) => ({
-        dashboardCode: r.dashboardCode,
+        dashboard: r.dashboard,
         roleCode: r.roleCode,
       })),
     };

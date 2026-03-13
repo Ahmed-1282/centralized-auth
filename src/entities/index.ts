@@ -1,12 +1,7 @@
 export { Partner } from './partner.entity';
-export { Dashboard } from './dashboard.entity';
 export { Role } from './role.entity';
-export { Permission } from './permission.entity';
 export { User } from './user.entity';
 export { UserRole } from './user-role.entity';
-export { UserPermission } from './user-permission.entity';
-export { PartnerDashboard } from './partner-dashboard.entity';
-export { PartnerFeatureToggle } from './partner-feature-toggle.entity';
 export { Agent } from './agent.entity';
 export { RefreshToken } from './refresh-token.entity';
 export { ApiKey } from './api-key.entity';

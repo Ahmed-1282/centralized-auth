@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, IsOptional, IsEmail } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsEmail,
+  IsArray,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreatePartnerDto {
@@ -60,16 +66,12 @@ export class UpdatePartnerDto {
   logoUrl?: string;
 }
 
-export class ToggleDashboardAccessDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  dashboardCode: string;
-
-  @ApiProperty({ example: true })
-  isEnabled: boolean;
-
-  @ApiPropertyOptional({ example: { max_users: 50, max_farms: 100 } })
-  @IsOptional()
-  config?: Record<string, any>;
+export class SetAllowedDashboardsDto {
+  @ApiProperty({
+    example: ['crop_monitoring', 'weather', 'vra'],
+    type: [String],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  dashboards: string[];
 }

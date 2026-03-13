@@ -1,12 +1,12 @@
-# GIS Auth - Database Schema Explanation
+# GIS Auth - Complete Explanation
 
-A complete, manager-friendly explanation of the entire database schema.
+A complete, manager-friendly explanation of the database schema and application flows.
 
 ---
 
 ## Overview
 
-The system has **15 tables** organized into **4 layers**. Think of it like a building — each layer has a purpose.
+The system has **10 tables** organized into **4 layers**. Think of it like a building — each layer has a purpose.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -71,103 +71,57 @@ When a user logs in, they get two tokens: a short-lived **access token** (~15 mi
 
 ## Layer 2: Authorization (What can you do?)
 
-### `dashboards` — The Applications
+### `roles` — Roles + Permissions Combined
 
-Each dashboard represents a **separate application/module** in the GIS system.
+Each role represents an **access level within a specific dashboard**. Roles now contain permissions directly as a JSONB field.
 
 | Column | Purpose |
 |--------|---------|
-| `code` | Short unique identifier like `crop_monitoring` |
-| `name` | Human-readable name like "Crop Monitoring Dashboard" |
-| `is_active` | Toggle the entire dashboard on/off |
+| `role_id` | Unique identifier (UUID) |
+| `dashboard` | Which dashboard this role belongs to (varchar, e.g. `crop_monitoring`, `weather`) |
+| `code` | Short unique identifier like `field_manager` |
+| `name` | Human-readable name like "Field Manager" |
+| `description` | What this role can do |
+| `permissions` | JSONB object — will hold permission key-value pairs once business defines them (empty `{}` for now) |
+| `is_system_role` | Built-in role or custom-created |
 
-Examples: Crop Monitoring, Weather, VRA Maps, Indices, Agents, Crops
-
-**Why?** — The GIS platform has multiple dashboards. We need to control **which partner gets access to which dashboard** and define roles/permissions per dashboard.
-
----
-
-### `roles` — Job Titles / Access Levels
-
-Roles are like **job titles** within a dashboard. For example, in the Crop Monitoring dashboard:
-
-- `admin` — can do everything
-- `field_manager` — can manage fields and view data
-- `viewer` — can only view data
-
-Each role belongs to a **specific dashboard**. A role in Crop Monitoring is separate from a role in Weather.
-
-**Why?** — Instead of assigning 50 individual permissions to each user, we group permissions into roles. Assign one role = user gets all its permissions. Much easier to manage.
+**Key rule:** A user can have **multiple roles** but only **ONE role per dashboard**. Example: Ahmed can be `admin` on Crop Monitoring AND `viewer` on Weather, but NOT both `admin` and `viewer` on Crop Monitoring.
 
 #### System Roles vs Custom Roles (`is_system_role`)
 
-This flag distinguishes between **two types of roles**:
-
-**System Roles** (`is_system_role = true`):
-- **Built-in, predefined roles** that come with the platform out of the box
-- Examples: `admin`, `viewer`, `field_manager`
-- Created by **the developers** during database seeding
-- Should **not be deleted or modified** by partner admins — they are the foundation
-
-**Custom Roles** (`is_system_role = false`):
-- Roles created **by partner admins** themselves to fit their specific needs
-- Example: A partner might create a "Regional Supervisor" role with a custom mix of permissions
-- These **can be edited or deleted** by the partner who created them
-
 Think of it like a phone:
-- **System roles** = the apps that come **pre-installed** (Camera, Phone, Settings). You can't delete them.
-- **Custom roles** = the apps **you download** yourself (WhatsApp, Instagram). You created them, you can modify or delete them.
+- **System roles** (`true`) = apps that come **pre-installed** (Camera, Phone, Settings). You can't delete them.
+- **Custom roles** (`false`) = apps **you download** yourself (WhatsApp, Instagram). You created them, you can modify or delete them.
+
+#### About Permissions (JSONB)
+
+The `permissions` column is a flexible JSONB field. It's currently empty `{}` because the exact permission structure hasn't been defined by the business yet. Once defined, it will hold key-value pairs like:
+
+```json
+{
+  "farms.view": true,
+  "farms.manage": true,
+  "reports.export": false
+}
+```
+
+This approach is simpler than having separate permissions/role_permissions tables — everything lives in one place.
 
 ---
 
-### `permissions` — Individual Actions
-
-Permissions are the **smallest unit of access control**. Each one represents one specific action:
-
-- `crop_monitoring.view` — can view crop data
-- `vra.manage` — can create/edit VRA maps
-- `weather.read` — can read weather data
-
-Each permission belongs to a dashboard and has a `module` field for grouping.
-
-**Why?** — Fine-grained control. Some users might need a custom set of permissions that doesn't match any standard role.
-
----
-
-### `role_permissions` — Which role has which permissions?
-
-A **junction/bridge table** connecting roles to permissions (many-to-many).
-
-Example: The "field_manager" role might include permissions: `crop_monitoring.view`, `crop_monitoring.edit`, `indices.read`
-
-**Why?** — One role can have many permissions, and one permission can belong to many roles. This table makes that relationship possible.
-
----
-
-### `user_roles` — Which user has which role?
+### `user_roles` — Which User Has Which Role?
 
 Assigns roles to users, with a full **audit trail**:
 
 | Column | Purpose |
 |--------|---------|
+| `user_id` | The user |
+| `role_id` | The role assigned |
 | `granted_by` | Which admin assigned this role |
 | `granted_at` | When it was assigned |
 | `revoked_at` | When/if it was revoked (without deleting the record) |
 
 **Why?** — We can track **who gave whom access and when** — critical for security audits and compliance.
-
----
-
-### `user_permissions` — Direct Permission Overrides
-
-Sometimes a user needs one extra permission (or needs one taken away) without changing their whole role:
-
-| Column | Purpose |
-|--------|---------|
-| `is_granted` | `true` = grant extra permission, `false` = **deny** a permission (even if their role includes it) |
-| `granted_by` | Which admin made this change |
-
-**Why?** — Maximum flexibility. Example: A "viewer" who also needs to export reports — give them the export permission directly without creating a new role.
 
 ---
 
@@ -183,32 +137,24 @@ Partners are the **client companies** using the GIS platform. Think of it as **m
 | `credits` | Balance of general credits (API usage, satellite imagery, etc.) |
 | `message_credits` | Separate balance for SMS/notification credits |
 | `settings` | Flexible JSON field for any partner-specific configuration |
+| `allowed_dashboards` | Text array of dashboards this partner can access (e.g. `['crop_monitoring', 'weather']`) |
 | `is_active` | Enable/disable the entire partner |
 | `deleted_at` | Soft delete — keep history, allow recovery |
 
 **Why?** — The platform serves multiple organizations. Each needs its own users, dashboard access, and credit balance.
 
----
+#### Dashboard Access Control (Simplified)
 
-### `partner_dashboards` — Which company gets which dashboards?
+Instead of a separate `partner_dashboards` table, each partner now has an `allowed_dashboards` array directly on their record:
 
-Controls which dashboards each partner company can access:
+```json
+["crop_monitoring", "insights", "field_survey"]
+```
 
-| Column | Purpose |
-|--------|---------|
-| `is_enabled` | Toggle access on/off |
-| `enabled_by` | Which admin enabled it |
-| `config` | JSON settings like `{max_users: 50, max_farms: 100}` — partner-specific limits |
+- Partner A might only have `["crop_monitoring"]`
+- Partner B might have `["crop_monitoring", "insights", "cane_monitoring"]`
 
-**Why?** — Not every partner pays for every dashboard. Partner A might only have Crop Monitoring, while Partner B has Crop Monitoring + Weather + VRA.
-
----
-
-### `partner_feature_toggles` — Fine-grained feature control per partner
-
-Even within a dashboard they have access to, we can **turn specific features on/off** per partner.
-
-**Why?** — Example: Partner A pays for VRA Maps but not the "advanced analytics" feature within it. We disable that specific permission for them.
+Simple, clean, no extra table needed.
 
 ---
 
@@ -278,6 +224,10 @@ These two tables store results from automated E2E (end-to-end) testing:
                     ┌──────────────┐
                     │   PARTNERS   │  ← Client companies (multi-tenant)
                     │  (Companies) │
+                    │              │
+                    │ allowed_dashboards:
+                    │ ['crop_monitoring',
+                    │  'weather']  │
                     └──────┬───────┘
                            │ has many
               ┌────────────┼────────────┐
@@ -286,21 +236,16 @@ These two tables store results from automated E2E (end-to-end) testing:
         │  USERS   │ │  AGENTS  │ │ API KEYS │
         │(People)  │ │ (Field)  │ │(Machines)│
         └─────┬────┘ └──────────┘ └──────────┘
-              │ assigned
-      ┌───────┼────────┐
-      │                │
- ┌────▼─────┐   ┌─────▼──────────┐
- │  ROLES   │   │  DIRECT PERMS  │
- │(Grouped) │   │  (Overrides)   │
- └────┬─────┘   └────────────────┘
-      │ contains
- ┌────▼────────┐
- │ PERMISSIONS │  ← Smallest unit of access
- └─────────────┘
-      │ scoped to
- ┌────▼──────┐
- │DASHBOARDS │  ← Crop Monitoring, Weather, VRA...
- └───────────┘
+              │
+              │ assigned via user_roles
+              │ (one role per dashboard)
+              │
+        ┌─────▼────────────────────────┐
+        │         ROLES                │
+        │  dashboard: 'crop_monitoring'│
+        │  code: 'field_manager'       │
+        │  permissions: { ... JSONB }  │
+        └──────────────────────────────┘
 ```
 
 ---
@@ -311,9 +256,10 @@ These two tables store results from automated E2E (end-to-end) testing:
 |----------|-----|
 | **UUIDs** for all IDs | Globally unique, safe for distributed systems, no sequential guessing |
 | **Soft deletes** (users, partners) | Keep history, enable recovery, maintain referential integrity |
-| **JSONB columns** for flexible data | Settings, device info, locations — avoids creating dozens of extra tables |
-| **Two-level permissions** (roles + direct) | Roles for easy management, direct permissions for exceptions |
-| **Dashboard-scoped roles/permissions** | Each app has its own set — no confusion between dashboards |
+| **JSONB permissions on roles** | Simpler than separate permissions/role_permissions tables — everything in one place |
+| **`allowed_dashboards` array on partners** | Simpler than a separate partner_dashboards table |
+| **Dashboard as varchar on roles** | No need for a separate dashboards table — dashboard is just a string identifier |
+| **One role per dashboard per user** | Users can access multiple dashboards but with one clear role each |
 | **Audit trail on assignments** | `granted_by`, `granted_at`, `revoked_at` — full accountability |
 | **Encrypted tokens & keys** | Passwords, refresh tokens, API keys all hashed — security best practice |
 | **Rate limiting on API keys** | Prevents abuse, protects system resources |
@@ -323,7 +269,9 @@ These two tables store results from automated E2E (end-to-end) testing:
 
 ## Summary
 
-This is a **Role-Based Access Control (RBAC)** system with **multi-tenant partner management**, **field agent tracking**, and **comprehensive audit logging** — all standard patterns for enterprise GIS platforms.
+This is a **simplified Role-Based Access Control (RBAC)** system with **multi-tenant partner management**, **field agent tracking**, and **comprehensive audit logging** — built for the GIS Agriculture Monitoring Platform.
+
+**10 tables total:** users, refresh_tokens, roles, user_roles, partners, agents, api_keys, audit_logs, test_report_runs, test_report_results.
 
 ---
 ---
@@ -384,8 +332,8 @@ The access token is a **JSON Web Token** — a signed piece of data the server c
   "partnerId": "partner-uuid",       // Which company
   "isSystemUser": false,             // Regular user or system account
   "roles": [                         // What roles they have
-    { "dashboardCode": "crop_monitoring", "roleCode": "admin" },
-    { "dashboardCode": "weather", "roleCode": "viewer" }
+    { "dashboard": "crop_monitoring", "roleCode": "admin" },
+    { "dashboard": "weather", "roleCode": "viewer" }
   ]
 }
 ```
@@ -454,29 +402,6 @@ Request comes in
    └── NO ──> Check if user has at least ONE required role
               ├── Has role ──> Allow
               └── No role ──> 403 Forbidden
-        │
-        ▼
-┌──────────────────┐     Does route have @Permissions() decorator?
-│ 3. Permissions   │────── NO ──> Skip, allow through
-│    Guard         │
-└───────┬──────────┘
-        │ YES
-        ▼
-   Load permissions from database:
-   1. Get permissions from user's roles (base)
-   2. Apply direct user overrides (grant/deny)
-   3. Apply partner feature toggles (filter)
-   4. Check if user has ALL required permissions
-        │
-        ▼
-┌──────────────────┐     Does route have @Dashboard() decorator?
-│ 4. Dashboard     │────── NO ──> Skip, allow through
-│    Guard         │
-└───────┬──────────┘
-        │ YES
-        ▼
-   Is partner allowed to access this dashboard?
-   Check partner_dashboards table
 ```
 
 ### In Simple Words
@@ -485,32 +410,6 @@ Think of it like entering a restricted area in an office building:
 
 1. **JWT Guard** = "Show me your employee badge" (are you who you say you are?)
 2. **Roles Guard** = "Are you a manager or above?" (do you have the right job title?)
-3. **Permissions Guard** = "Do you have clearance for THIS specific room?" (fine-grained check)
-4. **Dashboard Guard** = "Does your company have a contract for this floor?" (partner-level access)
-
-### Permission Layering (3 Levels)
-
-Permissions are calculated in layers — each layer can override the previous:
-
-```
-Layer 1: Role Permissions (base)
-   "field_manager" role gives: view, edit, export
-         │
-         ▼
-Layer 2: Direct User Overrides
-   Admin denied "export" for this user specifically
-   Result: view, edit (export removed)
-         │
-         ▼
-Layer 3: Partner Feature Toggles
-   Partner doesn't have "edit" feature enabled
-   Final result: view only
-```
-
-**Why 3 layers?**
-- **Roles** = easy bulk management ("all field managers can do X")
-- **Direct overrides** = exceptions for individual users
-- **Partner toggles** = business/licensing restrictions per company
 
 ### Special Decorators (Labels on API Endpoints)
 
@@ -520,8 +419,6 @@ Developers put "labels" on each API endpoint to tell the system what security to
 |-----------|---------|---------|
 | `@Public()` | No login needed, anyone can access | Health check, test reports |
 | `@Roles('admin', 'manager')` | User needs at least ONE of these roles | Admin-only endpoints |
-| `@Permissions('vra.manage')` | User needs ALL listed permissions | Feature-specific endpoints |
-| `@Dashboard('crop_monitoring')` | Partner must have this dashboard enabled | Dashboard-specific endpoints |
 | `@CurrentUser()` | Injects the logged-in user's info into the handler | Getting "who am I" data |
 
 ---
@@ -557,10 +454,8 @@ The API is organized into **modules**, each handling a specific domain. All rout
 |--------|----------|-------------|
 | POST | `/api/partners` | Create a new partner company |
 | GET | `/api/partners` | List all partners |
-| GET | `/api/partners/:partnerId` | Get partner with their dashboard access |
-| PATCH | `/api/partners/:partnerId` | Update partner info |
-| POST | `/api/partners/:partnerId/dashboards` | Enable/disable a dashboard for this partner |
-| GET | `/api/partners/:partnerId/dashboards` | See which dashboards this partner has |
+| GET | `/api/partners/:partnerId` | Get partner details |
+| PATCH | `/api/partners/:partnerId` | Update partner info (including allowed_dashboards) |
 | DELETE | `/api/partners/:partnerId` | Soft-delete a partner |
 
 ### Roles (`/api/roles`)
@@ -569,23 +464,11 @@ The API is organized into **modules**, each handling a specific domain. All rout
 |--------|----------|-------------|
 | POST | `/api/roles` | Create a new custom role |
 | GET | `/api/roles` | List roles (filter by dashboard) |
-| GET | `/api/roles/:roleId` | Get role with its permissions |
-| PATCH | `/api/roles/:roleId/permissions` | Set which permissions a role has |
+| GET | `/api/roles/:roleId` | Get role details |
+| PATCH | `/api/roles/:roleId` | Update role (including permissions JSONB) |
 | POST | `/api/roles/assign` | Assign a role to a user |
 | POST | `/api/roles/revoke` | Revoke a role from a user |
 | GET | `/api/roles/user/:userId` | See all roles a user has |
-
-### Permissions (`/api/permissions`)
-
-| Method | Endpoint | What It Does |
-|--------|----------|-------------|
-| POST | `/api/permissions` | Create a new permission |
-| GET | `/api/permissions` | List permissions (filter by dashboard, module) |
-| POST | `/api/permissions/user` | Grant or deny a direct permission to a user |
-| DELETE | `/api/permissions/user/:userId/:permissionId` | Remove a direct permission override |
-| GET | `/api/permissions/user/:userId` | See user's direct permissions |
-| POST | `/api/permissions/partner-toggle` | Enable/disable a feature for a partner |
-| GET | `/api/permissions/partner-toggle/:partnerId` | See partner's feature toggles |
 
 ### Agents (`/api/agents`)
 
@@ -651,7 +534,7 @@ Client Request
         │
         ▼
 ┌──────────────────┐
-│  Security Guards │  JWT → Roles → Permissions → Dashboard
+│  Security Guards │  JWT → Roles
 │  (see section 2) │  If unauthorized → 401/403 error
 └───────┬──────────┘
         │
@@ -723,8 +606,6 @@ AppModule (the company)
 │
 ├── RolesModule ───────── Create roles, assign/revoke roles to users
 │
-├── PermissionsModule ─── Create permissions, direct grants, feature toggles
-│
 ├── AgentsModule ──────── Manage field agents
 │
 ├── ApiKeysModule ─────── Create/revoke API keys
@@ -748,11 +629,11 @@ Before any data enters the system, it goes through **validation**. DTOs (Data Tr
 
 ```
 What the frontend sends:          What the DTO enforces:
-{                                  ✅ username: required, must be string
-  "username": "ahmed",             ✅ password: required, minimum 6 characters
-  "password": "pass123",           ✅ email: optional, must be valid email format
-  "email": "ahmed@bkk.com",       ✅ partnerId: optional, must be valid UUID
-  "partnerId": "some-uuid"        ✅ isSystemUser: optional, must be boolean
+{                                  username: required, must be string
+  "username": "ahmed",             password: required, minimum 6 characters
+  "password": "pass123",           email: optional, must be valid email format
+  "email": "ahmed@bkk.com",       partnerId: optional, must be valid UUID
+  "partnerId": "some-uuid"        isSystemUser: optional, must be boolean
 }
 ```
 
@@ -795,7 +676,7 @@ The system has a **global exception filter** — a safety net that catches ALL e
 |------------|----------------|-----------|
 | `UnauthorizedException` | Invalid credentials, expired/invalid token | 401 |
 | `ForbiddenException` | Account deactivated, insufficient permissions | 403 |
-| `NotFoundException` | User/role/partner/permission not found | 404 |
+| `NotFoundException` | User/role/partner not found | 404 |
 | `ConflictException` | Duplicate username, email, or phone number | 409 |
 | `BadRequestException` | Invalid input data (validation failed) | 400 |
 | Any unexpected error | Server bug, database down, etc. | 500 |
@@ -837,16 +718,16 @@ Here's a real-world scenario showing everything working together:
 
 ```
 1. PARTNER SETUP (done by super admin)
-   └── Partner "BKK" created with crop_monitoring dashboard enabled
+   └── Partner "BKK" created with allowed_dashboards: ['crop_monitoring']
 
 2. USER SETUP (done by admin)
    ├── User "ahmed" created, linked to partner "BKK"
-   └── Role "field_manager" (crop_monitoring) assigned to ahmed
+   └── Role "field_manager" (dashboard: crop_monitoring) assigned to ahmed via user_roles
 
 3. LOGIN
    ├── Ahmed sends: POST /api/auth/login {username: "ahmed", password: "***"}
    ├── Server validates credentials
-   ├── Server generates JWT with roles: [{crop_monitoring, field_manager}]
+   ├── Server generates JWT with roles: [{dashboard: "crop_monitoring", roleCode: "field_manager"}]
    ├── Audit log: "user.login" by ahmed
    └── Ahmed receives: accessToken + refreshToken
 
@@ -856,10 +737,6 @@ Here's a real-world scenario showing everything working together:
    │
    ├── JWT Guard: ✅ Token is valid, user is ahmed
    ├── Roles Guard: ✅ ahmed has "field_manager" role
-   ├── Dashboard Guard: ✅ BKK has crop_monitoring enabled
-   ├── Permissions Guard: ✅ field_manager has required permissions
-   │                      ✅ No direct denies for ahmed
-   │                      ✅ BKK has feature enabled
    │
    └── Response: { status: "success", data: { ... crop data ... } }
 
@@ -882,7 +759,7 @@ Here's a real-world scenario showing everything working together:
 | Component | Purpose |
 |-----------|---------|
 | **Authentication** | Verifies identity using JWT tokens with automatic refresh |
-| **Authorization** | 4-layer guard system (JWT → Roles → Permissions → Dashboard) |
+| **Authorization** | 2-layer guard system (JWT → Roles) |
 | **API Structure** | RESTful endpoints organized by domain (users, partners, roles, etc.) |
 | **Validation** | DTOs enforce data rules before anything touches the database |
 | **Response Format** | Every response follows the same `{status, message, data}` format |
@@ -891,4 +768,4 @@ Here's a real-world scenario showing everything working together:
 | **Testing** | Automated E2E tests with database-backed HTML reports |
 | **Architecture** | Modular NestJS design — each domain in its own module |
 
-The system is built as an **enterprise-grade authentication & authorization service** that can support multiple client companies (partners), each with their own users, dashboards, and permission configurations — all secured, audited, and tested.
+The system is built as an **enterprise-grade authentication & authorization service** that can support multiple client companies (partners), each with their own users, dashboards, and role configurations — all secured, audited, and tested.

@@ -19,7 +19,7 @@ import {
   CreateRoleDto,
   AssignRoleDto,
   RevokeRoleDto,
-  SetRolePermissionsDto,
+  UpdateRolePermissionsDto,
 } from './dto/role.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/jwt-payload.interface';
@@ -43,10 +43,10 @@ export class RolesController {
 
   @Get()
   @ApiOperation({ summary: 'List roles' })
-  @ApiQuery({ name: 'dashboardCode', required: false })
+  @ApiQuery({ name: 'dashboard', required: false })
   @ResponseMessage('Roles retrieved')
-  async findAll(@Query('dashboardCode') dashboardCode?: string) {
-    return this.rolesService.findAll(dashboardCode);
+  async findAll(@Query('dashboard') dashboard?: string) {
+    return this.rolesService.findAll(dashboard);
   }
 
   @Get(':roleId')
@@ -57,16 +57,16 @@ export class RolesController {
   }
 
   @Patch(':roleId/permissions')
-  @ApiOperation({ summary: 'Set permissions for a role' })
+  @ApiOperation({ summary: 'Update permissions for a role' })
   @ResponseMessage('Role permissions updated')
-  async setPermissions(
+  async updatePermissions(
     @Param('roleId') roleId: string,
-    @Body() dto: SetRolePermissionsDto,
+    @Body() dto: UpdateRolePermissionsDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.rolesService.setPermissions(
+    return this.rolesService.updatePermissions(
       roleId,
-      dto.permissionIds,
+      dto.permissions,
       user.userId,
     );
   }

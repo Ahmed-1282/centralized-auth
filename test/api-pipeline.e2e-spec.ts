@@ -24,11 +24,8 @@ let superadminUserId: string;
 let createdPartnerId: string;
 let createdUserId: string;
 let createdRoleId: string;
-let createdPermissionId: string;
 let createdAgentId: string;
 let createdApiKeyId: string;
-
-let existingPermissionId: string;
 
 // State for negative / edge-case test modules
 let deactivatedUserId: string | undefined;
@@ -345,7 +342,6 @@ afterAll(async () => {
       ...allPartnerIds,
       ...allUserIds,
       createdRoleId,
-      createdPermissionId,
       createdAgentId,
       createdApiKeyId,
     ].filter(Boolean);
@@ -365,30 +361,12 @@ afterAll(async () => {
         [allUserIds],
       );
       await client.query(
-        `DELETE FROM user_permissions WHERE user_id = ANY($1::uuid[])`,
-        [allUserIds],
-      );
-      await client.query(
         `DELETE FROM user_roles WHERE user_id = ANY($1::uuid[])`,
         [allUserIds],
       );
     }
 
-    if (createdRoleId) {
-      await client.query(`DELETE FROM role_permissions WHERE role_id = $1`, [
-        createdRoleId,
-      ]);
-    }
-
     if (allPartnerIds.length > 0) {
-      await client.query(
-        `DELETE FROM partner_feature_toggles WHERE partner_id = ANY($1::uuid[])`,
-        [allPartnerIds],
-      );
-      await client.query(
-        `DELETE FROM partner_dashboards WHERE partner_id = ANY($1::uuid[])`,
-        [allPartnerIds],
-      );
       await client.query(
         `DELETE FROM api_keys WHERE partner_id = ANY($1::uuid[])`,
         [allPartnerIds],
@@ -409,12 +387,6 @@ afterAll(async () => {
     if (createdRoleId) {
       await client.query(`DELETE FROM roles WHERE role_id = $1`, [
         createdRoleId,
-      ]);
-    }
-
-    if (createdPermissionId) {
-      await client.query(`DELETE FROM permissions WHERE permission_id = $1`, [
-        createdPermissionId,
       ]);
     }
 
@@ -615,38 +587,22 @@ describe('Partners Module (/api/partners)', () => {
     expect(res.body.data.name).toBe(`E2E Partner Updated ${TIMESTAMP}`);
   });
 
-  it('POST /api/partners/:id/dashboards — should toggle dashboard access', async () => {
+  it('PATCH /api/partners/:id — should update partner allowed dashboards', async () => {
     const res = await runTest(
-      'POST',
-      `/api/partners/:id/dashboards`,
-      'Toggle dashboard access',
-      201,
-      () =>
-        authPost(`/api/partners/${createdPartnerId}/dashboards`).send({
-          dashboardCode: 'crop_monitoring',
-          isEnabled: true,
-          config: { max_users: 50 },
-        }),
-    );
-
-    expect(res.status).toBe(201);
-    expect(res.body.status).toBe('success');
-    expect(res.body.data.isEnabled).toBe(true);
-  });
-
-  it('GET /api/partners/:id/dashboards — should get dashboard access', async () => {
-    const res = await runTest(
-      'GET',
-      `/api/partners/:id/dashboards`,
-      'Get dashboard access',
+      'PATCH',
+      `/api/partners/${createdPartnerId}`,
+      'Update partner allowed dashboards',
       200,
-      () => authGet(`/api/partners/${createdPartnerId}/dashboards`),
+      () =>
+        authPatch(`/api/partners/${createdPartnerId}`).send({
+          allowedDashboards: ['crop_monitoring', 'insights'],
+        }),
     );
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('success');
-    expect(res.body.data).toBeInstanceOf(Array);
-    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.data.allowedDashboards).toContain('crop_monitoring');
+    expect(res.body.data.allowedDashboards).toContain('insights');
   });
 
   it('DELETE /api/partners/:id — should soft delete a partner', async () => {
@@ -800,7 +756,7 @@ describe('Roles Module (/api/roles)', () => {
       201,
       () =>
         authPost('/api/roles').send({
-          dashboardCode: 'crop_monitoring',
+          dashboard: 'crop_monitoring',
           code: `e2e_role_${TIMESTAMP}`,
           name: `E2E Role ${TIMESTAMP}`,
           description: 'Created by E2E pipeline',
@@ -816,10 +772,10 @@ describe('Roles Module (/api/roles)', () => {
   it('GET /api/roles — should list roles', async () => {
     const res = await runTest(
       'GET',
-      '/api/roles?dashboardCode=crop_monitoring',
+      '/api/roles?dashboard=crop_monitoring',
       'List roles',
       200,
-      () => authGet('/api/roles?dashboardCode=crop_monitoring'),
+      () => authGet('/api/roles?dashboard=crop_monitoring'),
     );
 
     expect(res.status).toBe(200);
@@ -828,11 +784,11 @@ describe('Roles Module (/api/roles)', () => {
     expect(res.body.data.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('GET /api/roles/:id — should get role with permissions', async () => {
+  it('GET /api/roles/:id — should get role details', async () => {
     const res = await runTest(
       'GET',
       `/api/roles/${createdRoleId}`,
-      'Get role with permissions',
+      'Get role details',
       200,
       () => authGet(`/api/roles/${createdRoleId}`),
     );
@@ -842,27 +798,15 @@ describe('Roles Module (/api/roles)', () => {
     expect(res.body.data.roleId).toBe(createdRoleId);
   });
 
-  it('PATCH /api/roles/:id/permissions — should set permissions for role', async () => {
-    // Fetch seeded permission IDs
-    const permsRes = await authGet(
-      '/api/permissions?dashboardCode=crop_monitoring',
-    );
-    const permIds = permsRes.body.data
-      .slice(0, 3)
-      .map((p: any) => p.permissionId);
-
-    if (permsRes.body.data.length > 0) {
-      existingPermissionId = permsRes.body.data[0].permissionId;
-    }
-
+  it('PATCH /api/roles/:id — should update role permissions JSONB', async () => {
     const res = await runTest(
       'PATCH',
-      `/api/roles/:id/permissions`,
-      'Set role permissions',
+      `/api/roles/${createdRoleId}`,
+      'Update role permissions',
       200,
       () =>
-        authPatch(`/api/roles/${createdRoleId}/permissions`).send({
-          permissionIds: permIds,
+        authPatch(`/api/roles/${createdRoleId}`).send({
+          permissions: { 'farms.view': true, 'farms.manage': true },
         }),
     );
 
@@ -921,135 +865,7 @@ describe('Roles Module (/api/roles)', () => {
 });
 
 // ============================================================
-// 5. PERMISSIONS MODULE (7 tests)
-// ============================================================
-describe('Permissions Module (/api/permissions)', () => {
-  beforeAll(() => {
-    currentModule = 'Permissions';
-  });
-
-  it('POST /api/permissions — should create a permission', async () => {
-    const res = await runTest(
-      'POST',
-      '/api/permissions',
-      'Create permission',
-      201,
-      () =>
-        authPost('/api/permissions').send({
-          dashboardCode: 'crop_monitoring',
-          code: `e2e.test_perm_${TIMESTAMP}`,
-          name: `E2E Permission ${TIMESTAMP}`,
-          module: 'e2e_testing',
-        }),
-    );
-
-    expect(res.status).toBe(201);
-    expect(res.body.status).toBe('success');
-    expect(res.body.data.permissionId).toBeDefined();
-    createdPermissionId = res.body.data.permissionId;
-  });
-
-  it('GET /api/permissions — should list permissions', async () => {
-    const res = await runTest(
-      'GET',
-      '/api/permissions',
-      'List permissions',
-      200,
-      () => authGet('/api/permissions'),
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('success');
-    expect(res.body.data).toBeInstanceOf(Array);
-    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('POST /api/permissions/user — should set direct user permission', async () => {
-    const res = await runTest(
-      'POST',
-      '/api/permissions/user',
-      'Set user permission override',
-      201,
-      () =>
-        authPost('/api/permissions/user').send({
-          userId: createdUserId,
-          permissionId: createdPermissionId,
-          isGranted: true,
-        }),
-    );
-
-    expect(res.status).toBe(201);
-    expect(res.body.status).toBe('success');
-    expect(res.body.data.isGranted).toBe(true);
-  });
-
-  it('GET /api/permissions/user/:userId — should get user permissions', async () => {
-    const res = await runTest(
-      'GET',
-      `/api/permissions/user/${createdUserId}`,
-      'Get user permissions',
-      200,
-      () => authGet(`/api/permissions/user/${createdUserId}`),
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('success');
-    expect(res.body.data).toBeInstanceOf(Array);
-    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('DELETE /api/permissions/user/:userId/:permissionId — should remove override', async () => {
-    const res = await runTest(
-      'DELETE',
-      `/api/permissions/user/:userId/:permissionId`,
-      'Remove user permission override',
-      200,
-      () =>
-        authDelete(
-          `/api/permissions/user/${createdUserId}/${createdPermissionId}`,
-        ),
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('success');
-  });
-
-  it('POST /api/permissions/partner-toggle — should set partner feature toggle', async () => {
-    const res = await runTest(
-      'POST',
-      '/api/permissions/partner-toggle',
-      'Set partner feature toggle',
-      201,
-      () =>
-        authPost('/api/permissions/partner-toggle').send({
-          partnerId: createdPartnerId,
-          permissionId: existingPermissionId,
-          isEnabled: true,
-        }),
-    );
-
-    expect(res.status).toBe(201);
-    expect(res.body.status).toBe('success');
-  });
-
-  it('GET /api/permissions/partner-toggle/:partnerId — should get toggles', async () => {
-    const res = await runTest(
-      'GET',
-      `/api/permissions/partner-toggle/${createdPartnerId}`,
-      'Get partner feature toggles',
-      200,
-      () => authGet(`/api/permissions/partner-toggle/${createdPartnerId}`),
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('success');
-    expect(res.body.data).toBeInstanceOf(Array);
-    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
-  });
-});
-
-// ============================================================
-// 6. AGENTS MODULE (5 tests)
+// 5. AGENTS MODULE (5 tests)
 // ============================================================
 describe('Agents Module (/api/agents)', () => {
   beforeAll(() => {

@@ -15,20 +15,9 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { PartnersModule } from './modules/partners/partners.module';
 import { RolesModule } from './modules/roles/roles.module';
-import { PermissionsModule } from './modules/permissions/permissions.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { TestReportsModule } from './modules/test-reports/test-reports.module';
-
-// Entities needed by global guards
-import { TypeOrmModule as TypeOrmFeature } from '@nestjs/typeorm';
-import { Role } from './entities/role.entity';
-import { UserPermission } from './entities/user-permission.entity';
-import { UserRole } from './entities/user-role.entity';
-import { PartnerFeatureToggle } from './entities/partner-feature-toggle.entity';
-import { Permission } from './entities/permission.entity';
-import { PartnerDashboard } from './entities/partner-dashboard.entity';
-import { Dashboard } from './entities/dashboard.entity';
 
 @Module({
   imports: [
@@ -54,24 +43,12 @@ import { Dashboard } from './entities/dashboard.entity';
       }),
     }),
 
-    // Entities required by guards at the app-module level
-    TypeOrmFeature.forFeature([
-      Role,
-      UserPermission,
-      UserRole,
-      PartnerFeatureToggle,
-      Permission,
-      PartnerDashboard,
-      Dashboard,
-    ]),
-
     // Feature Modules
     AuditModule,
     AuthModule,
     UsersModule,
     PartnersModule,
     RolesModule,
-    PermissionsModule,
     AgentsModule,
     ApiKeysModule,
     TestReportsModule,

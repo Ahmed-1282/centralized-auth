@@ -3,11 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PartnersController } from './partners.controller';
 import { PartnersService } from './partners.service';
 import { Partner } from '../../entities/partner.entity';
-import { PartnerDashboard } from '../../entities/partner-dashboard.entity';
-import { Dashboard } from '../../entities/dashboard.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Partner, PartnerDashboard, Dashboard])],
+  imports: [TypeOrmModule.forFeature([Partner])],
   controllers: [PartnersController],
   providers: [PartnersService],
   exports: [PartnersService],

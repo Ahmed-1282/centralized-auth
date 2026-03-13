@@ -9,8 +9,6 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Agent } from './agent.entity';
-import { PartnerDashboard } from './partner-dashboard.entity';
-import { PartnerFeatureToggle } from './partner-feature-toggle.entity';
 import { ApiKey } from './api-key.entity';
 
 @Entity('partners')
@@ -45,6 +43,14 @@ export class Partner {
   @Column({ type: 'jsonb', default: {} })
   settings: Record<string, any>;
 
+  @Column({
+    name: 'allowed_dashboards',
+    type: 'text',
+    array: true,
+    default: '{}',
+  })
+  allowedDashboards: string[];
+
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
@@ -62,12 +68,6 @@ export class Partner {
 
   @OneToMany(() => Agent, (agent) => agent.partner)
   agents: Agent[];
-
-  @OneToMany(() => PartnerDashboard, (pd) => pd.partner)
-  partnerDashboards: PartnerDashboard[];
-
-  @OneToMany(() => PartnerFeatureToggle, (pft) => pft.partner)
-  featureToggles: PartnerFeatureToggle[];
 
   @OneToMany(() => ApiKey, (ak) => ak.partner)
   apiKeys: ApiKey[];

@@ -1,66 +1,45 @@
 -- ============================================================
--- GIS Auth - Database Schema (Fresh DB)
+-- GIS Auth - Database Schema (Simplified)
+-- ============================================================
+-- Tables removed in simplification:
+--   dashboards, permissions, role_permissions,
+--   user_permissions, partner_dashboards, partner_feature_toggles
 -- ============================================================
 
 BEGIN;
 
 -- 1. Partners
 CREATE TABLE IF NOT EXISTS partners (
-    partner_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name            VARCHAR(255) NOT NULL,
-    slug            VARCHAR(100) UNIQUE,
-    address         TEXT,
-    contact_no      VARCHAR(50),
-    email           VARCHAR(255),
-    logo_url        VARCHAR(500),
-    credits         BIGINT DEFAULT 0,
-    message_credits BIGINT DEFAULT 0,
-    settings        JSONB DEFAULT '{}',
-    is_active       BOOLEAN DEFAULT TRUE,
-    created_at      TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW(),
-    deleted_at      TIMESTAMPTZ
+    partner_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name                VARCHAR(255) NOT NULL,
+    slug                VARCHAR(100) UNIQUE,
+    address             TEXT,
+    contact_no          VARCHAR(50),
+    email               VARCHAR(255),
+    logo_url            VARCHAR(500),
+    credits             BIGINT DEFAULT 0,
+    message_credits     BIGINT DEFAULT 0,
+    settings            JSONB DEFAULT '{}',
+    allowed_dashboards  TEXT[] DEFAULT '{}',
+    is_active           BOOLEAN DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at          TIMESTAMPTZ
 );
 
--- 2. Dashboards
-CREATE TABLE IF NOT EXISTS dashboards (
-    dashboard_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code            VARCHAR(50) UNIQUE NOT NULL,
-    name            VARCHAR(255) NOT NULL,
-    description     TEXT,
-    is_active       BOOLEAN DEFAULT TRUE
-);
-
--- 3. Roles (per-dashboard)
+-- 2. Roles (dashboard as varchar, permissions as JSONB)
 CREATE TABLE IF NOT EXISTS roles (
     role_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    dashboard_id    UUID NOT NULL REFERENCES dashboards(dashboard_id),
+    dashboard       VARCHAR(100) NOT NULL,
     code            VARCHAR(50) NOT NULL,
     name            VARCHAR(255) NOT NULL,
     description     TEXT,
+    permissions     JSONB DEFAULT '{}',
     is_system_role  BOOLEAN DEFAULT TRUE,
-    UNIQUE(dashboard_id, code)
+    UNIQUE(dashboard, code)
 );
 
--- 4. Permissions (granular, per-dashboard)
-CREATE TABLE IF NOT EXISTS permissions (
-    permission_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    dashboard_id    UUID NOT NULL REFERENCES dashboards(dashboard_id),
-    code            VARCHAR(100) NOT NULL,
-    name            VARCHAR(255) NOT NULL,
-    description     TEXT,
-    module          VARCHAR(100),
-    UNIQUE(dashboard_id, code)
-);
-
--- 5. Role-Permission mapping
-CREATE TABLE IF NOT EXISTS role_permissions (
-    role_id         UUID NOT NULL REFERENCES roles(role_id) ON DELETE CASCADE,
-    permission_id   UUID NOT NULL REFERENCES permissions(permission_id) ON DELETE CASCADE,
-    PRIMARY KEY (role_id, permission_id)
-);
-
--- 6. Users (replaces partner_login)
+-- 3. Users
 CREATE TABLE IF NOT EXISTS users (
     user_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username        VARCHAR(100) UNIQUE NOT NULL,
@@ -80,7 +59,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_partner ON users(partner_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE deleted_at IS NULL;
 
--- 7. User-Role assignments (dashboard-scoped via role.dashboard_id)
+-- 4. User-Role assignments (one role per dashboard per user)
 CREATE TABLE IF NOT EXISTS user_roles (
     user_role_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -92,37 +71,7 @@ CREATE TABLE IF NOT EXISTS user_roles (
 );
 CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles(user_id) WHERE revoked_at IS NULL;
 
--- 8. User-Permission overrides (direct grant/deny)
-CREATE TABLE IF NOT EXISTS user_permissions (
-    user_permission_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    permission_id   UUID NOT NULL REFERENCES permissions(permission_id) ON DELETE CASCADE,
-    is_granted      BOOLEAN NOT NULL DEFAULT TRUE,
-    granted_by      UUID REFERENCES users(user_id),
-    granted_at      TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id, permission_id)
-);
-
--- 9. Partner-Dashboard access
-CREATE TABLE IF NOT EXISTS partner_dashboards (
-    partner_id      UUID NOT NULL REFERENCES partners(partner_id) ON DELETE CASCADE,
-    dashboard_id    UUID NOT NULL REFERENCES dashboards(dashboard_id) ON DELETE CASCADE,
-    is_enabled      BOOLEAN DEFAULT TRUE,
-    enabled_at      TIMESTAMPTZ DEFAULT NOW(),
-    enabled_by      UUID REFERENCES users(user_id),
-    config          JSONB DEFAULT '{}',
-    PRIMARY KEY (partner_id, dashboard_id)
-);
-
--- 10. Partner feature toggles
-CREATE TABLE IF NOT EXISTS partner_feature_toggles (
-    partner_id      UUID NOT NULL REFERENCES partners(partner_id) ON DELETE CASCADE,
-    permission_id   UUID NOT NULL REFERENCES permissions(permission_id) ON DELETE CASCADE,
-    is_enabled      BOOLEAN DEFAULT TRUE,
-    PRIMARY KEY (partner_id, permission_id)
-);
-
--- 11. Agents (enhanced, replaces partner_agents)
+-- 5. Agents
 CREATE TABLE IF NOT EXISTS agents (
     agent_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID UNIQUE REFERENCES users(user_id),
@@ -138,7 +87,7 @@ CREATE TABLE IF NOT EXISTS agents (
 );
 CREATE INDEX IF NOT EXISTS idx_agents_partner ON agents(partner_id);
 
--- 12. Refresh tokens
+-- 6. Refresh tokens
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     token_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -151,7 +100,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id) WHERE revoked_at IS NULL;
 
--- 13. API keys
+-- 7. API keys
 CREATE TABLE IF NOT EXISTS api_keys (
     api_key_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     partner_id      UUID NOT NULL REFERENCES partners(partner_id),
@@ -167,7 +116,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 14. Audit logs
+-- 8. Audit logs
 CREATE TABLE IF NOT EXISTS audit_logs (
     log_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID REFERENCES users(user_id),
@@ -183,7 +132,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
 
--- 15. Test report runs (one row per E2E test execution)
+-- 9. Test report runs
 CREATE TABLE IF NOT EXISTS test_report_runs (
     run_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     total_tests     INT NOT NULL DEFAULT 0,
@@ -195,7 +144,7 @@ CREATE TABLE IF NOT EXISTS test_report_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_test_report_runs_created ON test_report_runs(created_at);
 
--- 16. Test report results (individual test outcomes linked to a run)
+-- 10. Test report results
 CREATE TABLE IF NOT EXISTS test_report_results (
     result_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     run_id          UUID NOT NULL REFERENCES test_report_runs(run_id) ON DELETE CASCADE,

@@ -1,5 +1,5 @@
 export class JwtRolePayload {
-  dashboardCode: string;
+  dashboard: string;
   roleCode: string;
 }
 
