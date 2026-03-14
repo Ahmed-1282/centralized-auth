@@ -6,7 +6,7 @@ A complete, manager-friendly explanation of the entire database schema.
 
 ## Overview
 
-The system has **15 tables** organized into **4 layers**. Think of it like a building — each layer has a purpose.
+The system has **16 tables** organized into **4 layers**. Think of it like a building — each layer has a purpose.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -48,7 +48,7 @@ This is the **main table**. Every person who logs into the system has a record h
 A "system user" is like an **internal service account** — it's not a real person from a client company. It exists for the system itself to perform automated tasks (e.g., running scheduled jobs, seeding data, internal API calls). Since it doesn't represent anyone from a partner organization, it doesn't need a `partner_id`.
 
 Think of it like:
-- **Partner user** = "Ahmed from BKK" → has a partner_id pointing to BKK
+- **Partner user** = "Ahmed from Acme Corp" → has a partner_id pointing to Acme Corp
 - **System user** = "the system itself" → no partner, partner_id = null
 
 ---
@@ -77,25 +77,25 @@ Each dashboard represents a **separate application/module** in the platform.
 
 | Column | Purpose |
 |--------|---------|
-| `code` | Short unique identifier like `crop_monitoring` |
-| `name` | Human-readable name like "Crop Monitoring Dashboard" |
+| `code` | Short unique identifier like `operations` |
+| `name` | Human-readable name like "Operations Dashboard" |
 | `is_active` | Toggle the entire dashboard on/off |
 
-Examples: Crop Monitoring, Weather, VRA Maps, Indices, Agents, Crops
+Examples: Operations, Analytics, Supply Chain, Admin, Field Operations, Mobile App
 
-**Why?** — The agriculture monitoring platform has multiple dashboards. We need to control **which partner gets access to which dashboard** and define roles/permissions per dashboard.
+**Why?** — The multi-dashboard platform has multiple dashboards. We need to control **which partner gets access to which dashboard** and define roles/permissions per dashboard.
 
 ---
 
 ### `roles` — Job Titles / Access Levels
 
-Roles are like **job titles** within a dashboard. For example, in the Crop Monitoring dashboard:
+Roles are like **job titles** within a dashboard. For example, in the Operations dashboard:
 
 - `admin` — can do everything
 - `field_manager` — can manage fields and view data
 - `viewer` — can only view data
 
-Each role belongs to a **specific dashboard**. A role in Crop Monitoring is separate from a role in Weather.
+Each role belongs to a **specific dashboard**. A role in Operations is separate from a role in Analytics.
 
 **Why?** — Instead of assigning 50 individual permissions to each user, we group permissions into roles. Assign one role = user gets all its permissions. Much easier to manage.
 
@@ -124,9 +124,9 @@ Think of it like a phone:
 
 Permissions are the **smallest unit of access control**. Each one represents one specific action:
 
-- `crop_monitoring.view` — can view crop data
-- `vra.manage` — can create/edit VRA maps
-- `weather.read` — can read weather data
+- `resources.view` — can view resource data
+- `data.manage` — can create/edit data records
+- `metrics.read` — can read metrics and reports
 
 Each permission belongs to a dashboard and has a `module` field for grouping.
 
@@ -138,7 +138,7 @@ Each permission belongs to a dashboard and has a `module` field for grouping.
 
 A **junction/bridge table** connecting roles to permissions (many-to-many).
 
-Example: The "field_manager" role might include permissions: `crop_monitoring.view`, `crop_monitoring.edit`, `indices.read`
+Example: The "field_manager" role might include permissions: `resources.view`, `resources.edit`, `metrics.read`
 
 **Why?** — One role can have many permissions, and one permission can belong to many roles. This table makes that relationship possible.
 
@@ -175,12 +175,12 @@ Sometimes a user needs one extra permission (or needs one taken away) without ch
 
 ### `partners` — The Companies / Organizations
 
-Partners are the **client companies** using the agriculture monitoring platform. Think of it as **multi-tenancy** — each company is a tenant.
+Partners are the **client organizations** using the platform. Think of it as **multi-tenancy** — each company is a tenant.
 
 | Column | Purpose |
 |--------|---------|
 | `name, slug, address, contact_no, email, logo_url` | Company information |
-| `credits` | Balance of general credits (API usage, satellite imagery, etc.) |
+| `credits` | Balance of general credits (API usage, resource access, etc.) |
 | `message_credits` | Separate balance for SMS/notification credits |
 | `settings` | Flexible JSON field for any partner-specific configuration |
 | `is_active` | Enable/disable the entire partner |
@@ -198,9 +198,9 @@ Controls which dashboards each partner company can access:
 |--------|---------|
 | `is_enabled` | Toggle access on/off |
 | `enabled_by` | Which admin enabled it |
-| `config` | JSON settings like `{max_users: 50, max_farms: 100}` — partner-specific limits |
+| `config` | JSON settings like `{max_users: 50, max_projects: 100}` — partner-specific limits |
 
-**Why?** — Not every partner pays for every dashboard. Partner A might only have Crop Monitoring, while Partner B has Crop Monitoring + Weather + VRA.
+**Why?** — Not every partner pays for every dashboard. Partner A might only have Operations, while Partner B has Operations + Analytics + Supply Chain.
 
 ---
 
@@ -208,13 +208,13 @@ Controls which dashboards each partner company can access:
 
 Even within a dashboard they have access to, we can **turn specific features on/off** per partner.
 
-**Why?** — Example: Partner A pays for VRA Maps but not the "advanced analytics" feature within it. We disable that specific permission for them.
+**Why?** — Example: Partner A pays for Supply Chain but not the "advanced analytics" feature within it. We disable that specific permission for them.
 
 ---
 
 ### `agents` — Field Representatives
 
-Agents are **people on the ground** — field workers, extension officers, etc.
+Agents are **people on the ground** — field workers, representatives, etc.
 
 | Column | Purpose |
 |--------|---------|
@@ -224,7 +224,7 @@ Agents are **people on the ground** — field workers, extension officers, etc.
 | `user_id` | Optionally linked to a web user account |
 | `partner_id` | Which company they work for |
 
-**Why?** — platforms often have field agents collecting data. This table tracks them, their location, and links them to both a partner and optionally a web user account.
+**Why?** — Platforms often have field agents collecting data. This table tracks them, their location, and links them to both a partner and optionally a web user account.
 
 ---
 
@@ -235,8 +235,8 @@ For external systems or apps that need to call the API programmatically (not thr
 | Column | Purpose |
 |--------|---------|
 | `key_hash` | API key stored **encrypted** (raw key is never stored) |
-| `key_prefix` | First 12 characters shown in UI so admins can identify keys (like `gis_a8f3b2...`) |
-| `scopes` | Array of allowed actions (e.g., `['farms.read', 'indices.read']`) |
+| `key_prefix` | First 12 characters shown in UI so admins can identify keys (like `ca_a8f3b2...`) |
+| `scopes` | Array of allowed actions (e.g., `['resources.read', 'metrics.read']`) |
 | `rate_limit` | Max requests per minute (default 60) |
 | `expires_at` | Optional expiration date |
 
@@ -299,7 +299,7 @@ These two tables store results from automated E2E (end-to-end) testing:
  └─────────────┘
       │ scoped to
  ┌────▼──────┐
- │DASHBOARDS │  ← Crop Monitoring, Weather, VRA...
+ │DASHBOARDS │  ← Operations, Analytics, Supply Chain...
  └───────────┘
 ```
 
@@ -323,7 +323,7 @@ These two tables store results from automated E2E (end-to-end) testing:
 
 ## Summary
 
-This is a **Role-Based Access Control (RBAC)** system with **multi-tenant partner management**, **field agent tracking**, and **comprehensive audit logging** — all standard patterns for enterprise agriculture monitoring platforms.
+This is a **Role-Based Access Control (RBAC)** system with **multi-tenant partner management**, **field agent tracking**, and **comprehensive audit logging** — all standard patterns for enterprise multi-tenant platforms.
 
 ---
 ---
@@ -384,8 +384,8 @@ The access token is a **JSON Web Token** — a signed piece of data the server c
   "partnerId": "partner-uuid",       // Which company
   "isSystemUser": false,             // Regular user or system account
   "roles": [                         // What roles they have
-    { "dashboardCode": "crop_monitoring", "roleCode": "admin" },
-    { "dashboardCode": "weather", "roleCode": "viewer" }
+    { "dashboardCode": "operations", "roleCode": "admin" },
+    { "dashboardCode": "analytics", "roleCode": "viewer" }
   ]
 }
 ```
@@ -520,8 +520,8 @@ Developers put "labels" on each API endpoint to tell the system what security to
 |-----------|---------|---------|
 | `@Public()` | No login needed, anyone can access | Health check, test reports |
 | `@Roles('admin', 'manager')` | User needs at least ONE of these roles | Admin-only endpoints |
-| `@Permissions('vra.manage')` | User needs ALL listed permissions | Feature-specific endpoints |
-| `@Dashboard('crop_monitoring')` | Partner must have this dashboard enabled | Dashboard-specific endpoints |
+| `@Permissions('data.manage')` | User needs ALL listed permissions | Feature-specific endpoints |
+| `@Dashboard('operations')` | Partner must have this dashboard enabled | Dashboard-specific endpoints |
 | `@CurrentUser()` | Injects the logged-in user's info into the handler | Getting "who am I" data |
 
 ---
@@ -751,7 +751,7 @@ What the frontend sends:          What the DTO enforces:
 {                                  ✅ username: required, must be string
   "username": "ahmed",             ✅ password: required, minimum 6 characters
   "password": "pass123",           ✅ email: optional, must be valid email format
-  "email": "ahmed@bkk.com",       ✅ partnerId: optional, must be valid UUID
+  "email": "ahmed@acme.com",      ✅ partnerId: optional, must be valid UUID
   "partnerId": "some-uuid"        ✅ isSystemUser: optional, must be boolean
 }
 ```
@@ -833,35 +833,35 @@ Test reports are **publicly accessible** (no login needed) so stakeholders can c
 
 Here's a real-world scenario showing everything working together:
 
-**Scenario: "Ahmed from BKK logs in and views crop monitoring data"**
+**Scenario: "Ahmed from Acme Corp logs in and views operations data"**
 
 ```
 1. PARTNER SETUP (done by super admin)
-   └── Partner "BKK" created with crop_monitoring dashboard enabled
+   └── Partner "Acme Corp" created with operations dashboard enabled
 
 2. USER SETUP (done by admin)
-   ├── User "ahmed" created, linked to partner "BKK"
-   └── Role "field_manager" (crop_monitoring) assigned to ahmed
+   ├── User "ahmed" created, linked to partner "Acme Corp"
+   └── Role "field_manager" (operations) assigned to ahmed
 
 3. LOGIN
    ├── Ahmed sends: POST /api/auth/login {username: "ahmed", password: "***"}
    ├── Server validates credentials
-   ├── Server generates JWT with roles: [{crop_monitoring, field_manager}]
+   ├── Server generates JWT with roles: [{operations, field_manager}]
    ├── Audit log: "user.login" by ahmed
    └── Ahmed receives: accessToken + refreshToken
 
 4. ACCESS PROTECTED ENDPOINT
-   ├── Ahmed sends: GET /api/some-crop-endpoint
+   ├── Ahmed sends: GET /api/some-protected-endpoint
    │   Header: Authorization: Bearer <accessToken>
    │
    ├── JWT Guard: ✅ Token is valid, user is ahmed
    ├── Roles Guard: ✅ ahmed has "field_manager" role
-   ├── Dashboard Guard: ✅ BKK has crop_monitoring enabled
+   ├── Dashboard Guard: ✅ Acme Corp has operations enabled
    ├── Permissions Guard: ✅ field_manager has required permissions
    │                      ✅ No direct denies for ahmed
-   │                      ✅ BKK has feature enabled
+   │                      ✅ Acme Corp has feature enabled
    │
-   └── Response: { status: "success", data: { ... crop data ... } }
+   └── Response: { status: "success", data: { ... } }
 
 5. TOKEN EXPIRES (after 15 min)
    ├── Ahmed sends: POST /api/auth/refresh {refreshToken: "old-token"}

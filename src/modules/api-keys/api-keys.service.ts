@@ -20,7 +20,7 @@ export class ApiKeysService {
     createdBy: string,
   ): Promise<{ apiKey: ApiKey; rawKey: string }> {
     // Generate a raw API key
-    const rawKey = `gis_${randomBytes(32).toString('hex')}`;
+    const rawKey = `ca_${randomBytes(32).toString('hex')}`;
     const keyPrefix = rawKey.substring(0, 12);
     const keyHash = await bcrypt.hash(rawKey, 10);
 

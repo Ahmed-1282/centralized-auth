@@ -623,7 +623,7 @@ describe('Partners Module (/api/partners)', () => {
       201,
       () =>
         authPost(`/api/partners/${createdPartnerId}/dashboards`).send({
-          dashboardCode: 'crop_monitoring',
+          dashboardCode: 'operations',
           isEnabled: true,
           config: { max_users: 50 },
         }),
@@ -800,7 +800,7 @@ describe('Roles Module (/api/roles)', () => {
       201,
       () =>
         authPost('/api/roles').send({
-          dashboardCode: 'crop_monitoring',
+          dashboardCode: 'operations',
           code: `e2e_role_${TIMESTAMP}`,
           name: `E2E Role ${TIMESTAMP}`,
           description: 'Created by E2E pipeline',
@@ -816,10 +816,10 @@ describe('Roles Module (/api/roles)', () => {
   it('GET /api/roles — should list roles', async () => {
     const res = await runTest(
       'GET',
-      '/api/roles?dashboardCode=crop_monitoring',
+      '/api/roles?dashboardCode=operations',
       'List roles',
       200,
-      () => authGet('/api/roles?dashboardCode=crop_monitoring'),
+      () => authGet('/api/roles?dashboardCode=operations'),
     );
 
     expect(res.status).toBe(200);
@@ -845,7 +845,7 @@ describe('Roles Module (/api/roles)', () => {
   it('PATCH /api/roles/:id/permissions — should set permissions for role', async () => {
     // Fetch seeded permission IDs
     const permsRes = await authGet(
-      '/api/permissions?dashboardCode=crop_monitoring',
+      '/api/permissions?dashboardCode=operations',
     );
     const permIds = permsRes.body.data
       .slice(0, 3)
@@ -936,7 +936,7 @@ describe('Permissions Module (/api/permissions)', () => {
       201,
       () =>
         authPost('/api/permissions').send({
-          dashboardCode: 'crop_monitoring',
+          dashboardCode: 'operations',
           code: `e2e.test_perm_${TIMESTAMP}`,
           name: `E2E Permission ${TIMESTAMP}`,
           module: 'e2e_testing',
@@ -1152,7 +1152,7 @@ describe('API Keys Module (/api/api-keys)', () => {
         authPost('/api/api-keys').send({
           partnerId: createdPartnerId,
           name: `E2E Key ${TIMESTAMP}`,
-          scopes: ['farms.read', 'indices.read'],
+          scopes: ['resources.read', 'metrics.read'],
           rateLimit: 100,
         }),
     );
@@ -1160,7 +1160,7 @@ describe('API Keys Module (/api/api-keys)', () => {
     expect(res.status).toBe(201);
     expect(res.body.status).toBe('success');
     expect(res.body.data.apiKey.apiKeyId).toBeDefined();
-    expect(res.body.data.rawKey).toMatch(/^gis_/);
+    expect(res.body.data.rawKey).toMatch(/^ca_/);
     createdApiKeyId = res.body.data.apiKey.apiKeyId;
   });
 

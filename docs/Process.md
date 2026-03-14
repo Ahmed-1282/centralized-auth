@@ -20,27 +20,27 @@
 
 ## 1. Overview
 
-The Agriculture Monitoring Platform consists of **6 interconnected dashboards** that serve different user types across partners, field agents, mill operators, and internal staff:
+The multi-dashboard platform consists of **6 interconnected dashboards** that serve different user types across partners, field agents, facility operators, and internal staff:
 
 | # | Dashboard | Purpose |
 |---|-----------|---------|
-| 1 | **Crop Monitoring Portal** | Partner-based remote farm health monitoring (NDVI, anomalies, advisory) |
-| 2 | **Insights Dashboard** | Central layer repository with cross-dashboard analytics |
-| 3 | **Cane Monitoring Dashboard** | Sugar mill operations, harvest tracking, farmer management |
+| 1 | **Operations Dashboard** | Partner-based resource monitoring (metrics, alerts, notifications) |
+| 2 | **Analytics Dashboard** | Central data repository with cross-dashboard analytics |
+| 3 | **Supply Chain Dashboard** | Facility operations, inventory tracking, supplier management |
 | 4 | **Admin Dashboard** | Master control panel for all dashboards, users, and data |
-| 5 | **Field Survey Dashboard** | Agent management, QA, payroll, survey data pipeline |
-| 6 | **Field Survey App** | Mobile data collection - surveys, tasks, offline sync |
+| 5 | **Field Operations Dashboard** | Agent management, QA, payroll, data pipeline |
+| 6 | **Mobile App** | Mobile data collection - submissions, tasks, offline sync |
 
 This system provides **centralized authentication** (JWT-based) and **multi-tenant, dashboard-scoped RBAC** (Role-Based Access Control) across all 6 dashboards.
 
 ### Core Concepts
 
-- **Partner** = An organization/company (e.g., an agricultural company). Partners have users and field agents.
+- **Partner** = An organization/company (e.g., a client organization). Partners have users and field agents.
 - **User** = A person who logs into the platform. Belongs to a partner (or is a system user with no partner).
 - **Agent** = A field agent who collects data on the ground. Belongs to a partner, optionally linked to a user account.
 - **Role** = A named set of permissions, scoped to a specific dashboard. A user can hold different roles on different dashboards.
-- **Permission** = A granular feature-level action (e.g., `farms.view`, `anomalies.manage`), scoped to a dashboard.
-- **System User** = Internal BKK staff / super admins with no partner. They bypass partner-level restrictions.
+- **Permission** = A granular feature-level action (e.g., `resources.view`, `alerts.manage`), scoped to a dashboard.
+- **System User** = Platform administrators / super admins with no partner. They bypass partner-level restrictions.
 
 ---
 
@@ -69,8 +69,8 @@ src/
 │   │   ├── response-message.decorator.ts    # @ResponseMessage('...')
 │   │   ├── public.decorator.ts              # @Public() - skip JWT for public routes
 │   │   ├── roles.decorator.ts               # @Roles('admin', 'partner_admin')
-│   │   ├── permissions.decorator.ts         # @Permissions('farms.view')
-│   │   ├── dashboard.decorator.ts           # @Dashboard('crop_monitoring')
+│   │   ├── permissions.decorator.ts         # @Permissions('resources.view')
+│   │   ├── dashboard.decorator.ts           # @Dashboard('operations')
 │   │   └── current-user.decorator.ts        # @CurrentUser() param decorator
 │   ├── guards/
 │   │   ├── jwt-auth.guard.ts                # Global JWT validation
@@ -256,8 +256,8 @@ src/
 |-------|---------|---------|
 | `partners` | 12 cols + timestamps + soft delete | Partner organizations with settings, credits, branding |
 | `dashboards` | 4 cols | Registry of the 6 dashboards |
-| `roles` | 6 cols | Named roles scoped to a dashboard (e.g., `partner_admin` on `crop_monitoring`) |
-| `permissions` | 6 cols | Granular feature permissions scoped to a dashboard (e.g., `farms.view`) |
+| `roles` | 6 cols | Named roles scoped to a dashboard (e.g., `partner_admin` on `operations`) |
+| `permissions` | 6 cols | Granular feature permissions scoped to a dashboard (e.g., `resources.view`) |
 | `role_permissions` | 2 cols (composite PK) | M:N mapping of which permissions a role grants |
 | `users` | 11 cols + timestamps + soft delete | Central user accounts with bcrypt passwords, partner link |
 | `user_roles` | 6 cols | User-to-role assignment with `granted_by`, `granted_at`, `revoked_at` audit trail |
@@ -373,8 +373,8 @@ Client                              Server
   "partnerId": "660e8400-e29b-41d4-a716-446655440001",
   "isSystemUser": false,
   "roles": [
-    { "dashboardCode": "crop_monitoring", "roleCode": "partner_admin" },
-    { "dashboardCode": "insights", "roleCode": "partner_user" }
+    { "dashboardCode": "operations", "roleCode": "partner_admin" },
+    { "dashboardCode": "analytics", "roleCode": "partner_user" }
   ],
   "iat": 1709000000,
   "exp": 1709000900
@@ -412,7 +412,7 @@ POST /api/auth/logout-all   → Revoke ALL refresh tokens for user (all devices)
 ```
 Client                              Server
   │                                    │
-  │─── GET /api/farms ────────────────>│
+  │─── GET /api/resources ──────────────>│
   │    Authorization: Bearer eyJ...    │
   │                                    │  JwtAuthGuard:
   │                                    │    1. Extract token from Authorization header
@@ -454,7 +454,7 @@ Request
                ▼
 ┌──────────────────────────────────────────────┐
 │  3. DashboardGuard (per-route)               │
-│     - Checks @Dashboard('crop_monitoring')   │
+│     - Checks @Dashboard('operations')        │
 │     - Verifies partner_dashboards entry      │
 │     - System users bypass this check         │
 │     - No @Dashboard decorator → allow all    │
@@ -464,7 +464,7 @@ Request
                ▼
 ┌──────────────────────────────────────────────┐
 │  4. PermissionsGuard (per-route)             │
-│     - Checks @Permissions('farms.view', ...) │
+│     - Checks @Permissions('resources.view', ...)│
 │     - Full resolution (see Section 7)        │
 │     - System users bypass this check         │
 │     - No @Permissions decorator → allow all  │
@@ -493,16 +493,16 @@ async getProfile() { ... }
 async getStats() { ... }
 
 // Requires role + dashboard scope
-@Dashboard('crop_monitoring')
+@Dashboard('operations')
 @Roles('partner_admin')
-@Get('farms')
-async getFarms() { ... }
+@Get('resources')
+async getResources() { ... }
 
 // Requires specific permission on a dashboard
-@Dashboard('crop_monitoring')
-@Permissions('farms.view')
-@Get('farms')
-async getFarms() { ... }
+@Dashboard('operations')
+@Permissions('resources.view')
+@Get('resources')
+async getResources() { ... }
 
 // Extract current user from JWT
 @Get('profile')
@@ -515,7 +515,7 @@ async getProfile(@CurrentUser() user: AuthenticatedUser) {
 
 ## 7. Permission Resolution Logic
 
-When `@Permissions('farms.view', 'farms.manage')` is applied to a route:
+When `@Permissions('resources.view', 'resources.manage')` is applied to a route:
 
 ```
 Step 1: Get user's active roles
@@ -525,7 +525,7 @@ Step 2: Collect permissions from roles (via role_permissions join)
         → For each active role, gather all permission codes
         → If @Dashboard specified, only include roles matching that dashboard
 
-        Result: Set<string> rolePermissions = { 'farms.view', 'indices.view', ... }
+        Result: Set<string> rolePermissions = { 'resources.view', 'metrics.view', ... }
 
 Step 3: Get direct user permission overrides
         → SELECT * FROM user_permissions WHERE user_id = ?
@@ -562,23 +562,23 @@ effective_permissions =
 ### Example Scenario
 
 ```
-User: john (partner: AgroCorp)
+User: john (partner: ClientCorp)
   Active Roles:
-    - crop_monitoring / partner_admin → grants: farms.view, farms.manage, indices.view, ...
-    - insights / partner_user        → grants: layers.view, data.export
+    - operations / partner_admin → grants: resources.view, resources.manage, metrics.view, ...
+    - analytics / partner_user   → grants: layers.view, data.export
 
   Direct Overrides:
-    - farms.export: is_granted = TRUE   (added - not in role but directly granted)
-    - indices.view: is_granted = FALSE  (removed - explicitly denied despite role)
+    - resources.export: is_granted = TRUE   (added - not in role but directly granted)
+    - metrics.view: is_granted = FALSE      (removed - explicitly denied despite role)
 
-  Partner Feature Toggles (AgroCorp):
-    - farms.view: enabled
-    - farms.manage: enabled
-    - indices.view: enabled      ← but john has a direct deny, so still blocked
-    - farms.export: NOT in toggles... if partner has any toggles, this gets blocked
+  Partner Feature Toggles (ClientCorp):
+    - resources.view: enabled
+    - resources.manage: enabled
+    - metrics.view: enabled      ← but john has a direct deny, so still blocked
+    - resources.export: NOT in toggles... if partner has any toggles, this gets blocked
 
-  Final on crop_monitoring:
-    { farms.view, farms.manage }
+  Final on operations:
+    { resources.view, resources.manage }
 ```
 
 ---
@@ -732,19 +732,19 @@ providers: [
 
 ## 10. Dashboards, Roles & Permissions Matrix
 
-### Crop Monitoring Portal
+### Operations Dashboard
 
 | Role | Permissions |
 |------|-------------|
 | **system_admin** | ALL permissions |
-| **executive_user** | farms.view, indices.view, anomalies.view, weather.view, overview.view, reports.view, reports.export, disease_risk.view, yield.view |
+| **executive_user** | resources.view, metrics.view, alerts.view, external_data.view, overview.view, reports.view, reports.export, risk.view, forecasts.view |
 | **partner_admin** | ALL except overview.view |
-| **general_user** | farms.view, indices.view, anomalies.view, weather.view, reports.view, disease_risk.view, yield.view |
-| **agri_expert** | farms.view, indices.view, anomalies.view, anomalies.manage, advisory.view, advisory.create, disease_risk.view, weather.view |
+| **general_user** | resources.view, metrics.view, alerts.view, external_data.view, reports.view, risk.view, forecasts.view |
+| **domain_expert** | resources.view, metrics.view, alerts.view, alerts.manage, notifications.view, notifications.create, risk.view, external_data.view |
 
-Full permissions list: `farms.view`, `farms.manage`, `farms.export`, `indices.view`, `anomalies.view`, `anomalies.manage`, `agents.view`, `agents.manage`, `advisory.view`, `advisory.create`, `reports.view`, `reports.export`, `weather.view`, `overview.view`, `disease_risk.view`, `yield.view`
+Full permissions list: `resources.view`, `resources.manage`, `resources.export`, `metrics.view`, `alerts.view`, `alerts.manage`, `agents.view`, `agents.manage`, `notifications.view`, `notifications.create`, `reports.view`, `reports.export`, `external_data.view`, `overview.view`, `risk.view`, `forecasts.view`
 
-### Insights Dashboard
+### Analytics Dashboard
 
 | Role | Permissions |
 |------|-------------|
@@ -755,16 +755,16 @@ Full permissions list: `farms.view`, `farms.manage`, `farms.export`, `indices.vi
 
 Full permissions: `layers.view`, `layers.manage`, `classification.view`, `benchmarking.view`, `carbon.view`, `trends.view`, `data.export`
 
-### Cane Monitoring Dashboard
+### Supply Chain Dashboard
 
 | Role | Permissions |
 |------|-------------|
 | **super_admin** | ALL permissions |
-| **mill_admin** | ALL permissions |
-| **unit_admin** | mills.view, harvest.view, harvest.manage, farmers.view, farmers.manage, classification.view, ratoon.view, yield.view |
-| **multi_mill_admin** | ALL permissions |
+| **facility_admin** | ALL permissions |
+| **unit_admin** | facilities.view, inventory.view, inventory.manage, suppliers.view, suppliers.manage, classification.view, tracking.view, forecasts.view |
+| **multi_facility_admin** | ALL permissions |
 
-Full permissions: `mills.view`, `mills.manage`, `harvest.view`, `harvest.manage`, `farmers.view`, `farmers.manage`, `classification.view`, `ratoon.view`, `yield.view`
+Full permissions: `facilities.view`, `facilities.manage`, `inventory.view`, `inventory.manage`, `suppliers.view`, `suppliers.manage`, `classification.view`, `tracking.view`, `forecasts.view`
 
 ### Admin Dashboard
 
@@ -775,24 +775,24 @@ Full permissions: `mills.view`, `mills.manage`, `harvest.view`, `harvest.manage`
 
 Full permissions: `partners.view`, `partners.manage`, `users.view`, `users.manage`, `roles.view`, `roles.manage`, `layers.manage`, `api_keys.view`, `api_keys.manage`, `billing.view`, `billing.manage`, `audit.view`, `white_label.manage`, `platform.analytics`
 
-### Field Survey Dashboard
+### Field Operations Dashboard
 
 | Role | Permissions |
 |------|-------------|
 | **system_admin** | ALL permissions |
-| **qa_user** | surveys.view, surveys.qa, agents.view, performance.view |
-| **qa_supervisor** | surveys.view, surveys.qa, surveys.supervise, agents.view, payroll.view, data.export, performance.view |
+| **qa_user** | submissions.view, submissions.qa, agents.view, performance.view |
+| **qa_supervisor** | submissions.view, submissions.qa, submissions.supervise, agents.view, payroll.view, data.export, performance.view |
 
-Full permissions: `agents.view`, `agents.manage`, `surveys.view`, `surveys.qa`, `surveys.supervise`, `payroll.view`, `payroll.manage`, `data.export`, `performance.view`
+Full permissions: `agents.view`, `agents.manage`, `submissions.view`, `submissions.qa`, `submissions.supervise`, `payroll.view`, `payroll.manage`, `data.export`, `performance.view`
 
-### Field Survey App
+### Mobile App
 
 | Role | Permissions |
 |------|-------------|
 | **surveyor** | ALL permissions |
 | **field_executive** | ALL permissions |
 
-Full permissions: `surveys.submit`, `boundaries.mark`, `photos.upload`, `tasks.view`, `tasks.execute`, `farmers.onboard`
+Full permissions: `submissions.submit`, `boundaries.mark`, `photos.upload`, `tasks.view`, `tasks.execute`, `contacts.onboard`
 
 ---
 
@@ -819,11 +819,11 @@ Full permissions: `surveys.submit`, `boundaries.mark`, `photos.upload`, `tasks.v
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Roles are per-dashboard | Yes | A user can be `partner_admin` on Crop Monitoring but only `partner_user` on Insights |
-| Permissions belong to a dashboard | Yes | `farms.view` is a crop_monitoring permission, `layers.view` is an insights permission |
+| Roles are per-dashboard | Yes | A user can be `partner_admin` on Operations Dashboard but only `partner_user` on Analytics Dashboard |
+| Permissions belong to a dashboard | Yes | `resources.view` is an operations permission, `layers.view` is an analytics permission |
 | Partner feature toggles | Separate table | Partners can be blocked from specific features even if their users' roles include them |
 | Agents optionally have users | `agents.user_id` nullable | Some agents only use phone-based auth on mobile, others need web login |
-| System users have no partner | `users.partner_id` nullable | BKK internal staff and agri-experts work cross-partner |
+| System users have no partner | `users.partner_id` nullable | Internal staff and domain experts work cross-partner |
 | Refresh tokens in DB | Hashed, revocable | Enables logout-everywhere, token rotation, device tracking |
 | `synchronize: false` | Manual SQL migrations | Always use explicit SQL for schema changes |
 | Soft deletes on users/partners | `deleted_at` column | Preserve audit trail, allow restoration |
@@ -840,8 +840,8 @@ Full permissions: `surveys.submit`, `boundaries.mark`, `photos.upload`, `tasks.v
 ### Environment Variables
 
 ```env
-# Database (existing)
-DB_HOST=192.168.12.148
+# Database
+DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=***
